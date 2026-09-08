@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MeadowBrook B7 — Invite Code Print Sheet</title>
+  <style>
+    :root {
+      --indigo: #4f46e5;
+      --indigo-light: #eef2ff;
+      --slate: #334155;
+      --slate-mid: #64748b;
+      --slate-light: #f8fafc;
+      --border: #e2e8f0;
+      --card-w: 2.4in;
+      --card-h: 1.9in;
+      --gap: 0.12in;
+      --page-pad: 0.3in;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: var(--slate); }
+
+    /* Toolbar */
+    #toolbar { background: white; border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+    #toolbar h1 { font-size: 15px; font-weight: 700; color: var(--slate); flex: 1; }
+    .subtitle { font-size: 12px; color: var(--slate-mid); font-weight: 400; }
+    #status { font-size: 13px; color: var(--slate-mid); }
+    #btn-print { background: var(--indigo); color: white; border: none; border-radius: 8px; padding: 9px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    #btn-print:hover { background: #4338ca; }
+    #btn-print:disabled { background: #a5b4fc; cursor: default; }
+    #btn-reload { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--slate-mid); cursor: pointer; }
+    #btn-reload:hover { border-color: #94a3b8; }
+
+    /* Login prompt */
+    #login-prompt { display: none; max-width: 400px; margin: 60px auto; background: white; border-radius: 16px; padding: 36px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    #login-prompt h2 { font-size: 18px; margin-bottom: 6px; }
+    #login-prompt p { font-size: 13px; color: var(--slate-mid); margin-bottom: 18px; }
+    #login-prompt input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
+    #login-prompt button { width: 100%; background: var(--indigo); color: white; border: none; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    #login-error { font-size: 12px; color: #ef4444; margin-top: 8px; }
+
+    /* Pages wrapper */
+    #pages { padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 32px; }
+
+    /* Print page */
+    .page { background: white; width: 8.5in; min-height: 11in; padding: var(--page-pad); box-shadow: 0 2px 16px rgba(0,0,0,.10); border-radius: 4px; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.18in; padding-bottom: 0.1in; border-bottom: 1px solid var(--border); }
+    .page-header .logo { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--indigo); }
+    .page-header .meta { font-size: 10px; color: var(--slate-mid); }
+
+    /* 4x4 grid */
+    .grid { display: grid; grid-template-columns: repeat(4, var(--card-w)); grid-template-rows: repeat(4, var(--card-h)); gap: var(--gap); justify-content: center; }
+
+    /* Invite card */
+    .card { width: var(--card-w); height: var(--card-h); border: 1px dashed #cbd5e1; border-radius: 8px; padding: 0.14in 0.16in; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; background: var(--slate-light); }
+    .card::before { content: ''; position: absolute; right: -0.5in; bottom: -0.5in; width: 1.4in; height: 1.4in; border-radius: 50%; background: var(--indigo-light); opacity: .6; }
+    .card-building { font-size: 6.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--indigo); margin-bottom: 3px; }
+    .card-title { font-size: 9px; font-weight: 600; color: var(--slate); line-height: 1.3; }
+    .card-apt { font-size: 13px; font-weight: 700; color: var(--slate); margin-top: 4px; }
+    .card-middle { text-align: center; position: relative; z-index: 1; }
+    .card-code-label { font-size: 6px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--slate-mid); margin-bottom: 3px; }
+    .card-code { font-family: 'Courier New', monospace; font-size: 15px; font-weight: 700; letter-spacing: .1em; color: var(--indigo); background: white; border: 1.5px solid var(--indigo); border-radius: 6px; padding: 4px 10px; display: inline-block; }
+    .card-bottom { font-size: 6px; color: var(--slate-mid); line-height: 1.5; }
+    .card-url { font-weight: 700; color: var(--slate); }
+
+    /* Redeemed state */
+    .card.redeemed { opacity: 0.4; background: #f1f5f9; }
+    .card.redeemed .card-code { text-decoration: line-through; color: var(--slate-mid); border-color: var(--slate-mid); }
+    .redeemed-badge { position: absolute; top: 0.1in; right: 0.1in; font-size: 6px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #ef4444; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 5px; }
+
+    /* Loading */
+    #loading { text-align: center; padding: 80px 24px; font-size: 14px; color: var(--slate-mid); }
+    #loading .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--indigo); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Filter bar */
+    #filter-bar { display: flex; gap: 10px; align-items: center; padding: 0 24px 16px; }
+    #filter-bar label { font-size: 13px; color: var(--slate-mid); }
+    #filter-bar select { border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 13px; background: white; }
+    .hint { font-size: 12px; color: var(--slate-mid); margin-left: 8px; }
+
+    /* ── Print ── */
+    @media print {
+      @page { size: letter; margin: 0; }
+      body { background: white; }
+      #toolbar, #filter-bar, #login-prompt, #loading { display: none !important; }
+      #pages { padding: 0; gap: 0; }
+      .page { width: 8.5in; height: 11in; padding: 0.35in 0.3in; box-shadow: none; border-radius: 0; page-break-after: always; break-after: page; }
+      .page:last-child { page-break-after: avoid; break-after: avoid; }
+      .card { border: 1px dashed #94a3b8; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div style="flex:1">
+    <h1>Invite Code Print Sheet <span class="subtitle">&#8212; MeadowBrook Building 7</span></h1>
+  </div>
+  <span id="status">Loading&#8230;</span>
+  <button id="btn-reload" onclick="loadCodes()">&#8635; Reload</button>
+  <button id="btn-print" disabled onclick="window.print()">&#128424; Print / Save PDF</button>
+</div>
+
+<div id="filter-bar" style="display:none">
+  <label>Show:</label>
+  <select id="filter-select" onchange="renderPages()">
+    <option value="unused">Unused only (ready to distribute)</option>
+    <option value="all">All codes</option>
+    <option value="redeemed">All + redeemed (greyed)</option>
+  </select>
+  <span class="hint">Ctrl+P &#8594; &#8220;Save as PDF&#8221; to generate the file.</span>
+</div>
+
+<div id="login-prompt">
+  <h2>Admin Login Required</h2>
+  <p>Invite codes are restricted to admins. Sign in to continue.</p>
+  <input id="li-email" type="email" placeholder="Admin email" />
+  <input id="li-pw" type="password" placeholder="Password" />
+  <button onclick="doLogin()">Log In</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  Fetching invite codes&#8230;
+</div>
+
+<div id="pages"></div>
+
+<script>
+  var SUPABASE_URL  = 'https://kjsnaibbhjxkaglfsowd.supabase.co';
+  var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtqc25haWJiaGp4a2FnbGZzb3dkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NzI0NjYsImV4cCI6MjEwMDE0ODQ2Nn0.3llQfhx8XWGJkPtYEh_q8AkvlDjHoUb9WfUx9-NEjD0';
+  var CARDS_PER_PAGE = 16;
+  var allCodes = [];
+  var sessionToken = null;
+
+  function sbFetch(path, opts) {
+    opts = opts || {};
+    var headers = { 'apikey': SUPABASE_ANON, 'Content-Type': 'application/json' };
+    if (sessionToken) headers['Authorization'] = 'Bearer ' + sessionToken;
+    if (opts.headers) Object.assign(headers, opts.headers);
+    return fetch(SUPABASE_URL + path, Object.assign({}, opts, { headers: headers }))
+      .then(function(res) {
+        return res.json().catch(function() { return {}; }).then(function(json) {
+          return { ok: res.ok, status: res.status, data: json };
+        });
+      });
+  }
+
+  function checkSession() {
+    var keys = Object.keys(localStorage);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k.indexOf('sb-') === 0 && k.indexOf('-auth-token') === k.length - 11) {
+        try {
+          var raw = JSON.parse(localStorage.getItem(k));
+          if (raw && raw.access_token) { sessionToken = raw.access_token; return true; }
+        } catch(e) {}
+      }
+    }
+    return false;
+  }
+
+  function doLogin() {
+    var email = document.getElementById('li-email').value.trim();
+    var pw    = document.getElementById('li-pw').value;
+    document.getElementById('login-error').textContent = '';
+    sbFetch('/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      body: JSON.stringify({ email: email, password: pw })
+    }).then(function(res) {
+      if (!res.ok || !res.data || !res.data.access_token) {
+        document.getElementById('login-error').textContent = (res.data && res.data.error_description) || 'Login failed.';
+        return;
+      }
+      sessionToken = res.data.access_token;
+      document.getElementById('login-prompt').style.display = 'none';
+      loadCodes();
+    });
+  }
+
+  function loadCodes() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('pages').innerHTML = '';
+    document.getElementById('status').textContent = 'Loading\u2026';
+    document.getElementById('btn-print').disabled = true;
+    document.getElementById('filter-bar').style.display = 'none';
+    document.getElementById('login-prompt').style.display = 'none';
+
+    if (!checkSession() && !sessionToken) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('login-prompt').style.display = 'block';
+      return;
+    }
+
+    sbFetch('/rest/v1/invite_codes?select=code,apartment,max_uses,use_count&order=apartment', { method: 'GET' })
+      .then(function(res) {
+        document.getElementById('loading').style.display = 'none';
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            sessionToken = null;
+            document.getElementById('login-prompt').style.display = 'block';
+          } else {
+            document.getElementById('pages').innerHTML = '<p style="padding:40px;color:#ef4444">Error: ' + JSON.stringify(res.data) + '</p>';
+          }
+          return;
+        }
+        allCodes = res.data || [];
+        if (allCodes.length === 0) {
+          document.getElementById('pages').innerHTML = '<p style="padding:80px 24px;text-align:center;color:#94a3b8;font-size:14px">No invite codes found in the database.</p>';
+          document.getElementById('status').textContent = 'No codes found';
+          return;
+        }
+        document.getElementById('filter-bar').style.display = 'flex';
+        renderPages();
+      });
+  }
+
+  function renderPages() {
+    var filter    = document.getElementById('filter-select').value;
+    var now       = new Date();
+    var printDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    var codes = (filter === 'unused')
+      ? allCodes.filter(function(c) { return c.use_count < c.max_uses; })
+      : allCodes;
+
+    var unused   = allCodes.filter(function(c) { return c.use_count === 0; }).length;
+    var redeemed = allCodes.filter(function(c) { return c.use_count >= c.max_uses; }).length;
+    document.getElementById('status').textContent = allCodes.length + ' codes \xb7 ' + unused + ' unused \xb7 ' + redeemed + ' redeemed';
+    document.getElementById('btn-print').disabled = false;
+
+    var pagesEl   = document.getElementById('pages');
+    pagesEl.innerHTML = '';
+    var totalPages = Math.ceil(codes.length / CARDS_PER_PAGE);
+
+    for (var start = 0; start < codes.length; start += CARDS_PER_PAGE) {
+      var chunk   = codes.slice(start, start + CARDS_PER_PAGE);
+      var pageNum = Math.floor(start / CARDS_PER_PAGE) + 1;
+
+      var page = document.createElement('div');
+      page.className = 'page';
+
+      var hdr = document.createElement('div');
+      hdr.className = 'page-header';
+      hdr.innerHTML = '<span class="logo">MeadowBrook &middot; Building 7 &mdash; Resident Invite Codes</span>' +
+                      '<span class="meta">Printed ' + printDate + ' &nbsp;&middot;&nbsp; Page ' + pageNum + ' of ' + totalPages + ' &nbsp;&middot;&nbsp; Admin Confidential</span>';
+      page.appendChild(hdr);
+
+      var grid = document.createElement('div');
+      grid.className = 'grid';
+
+      chunk.forEach(function(c) {
+        var isRedeemed     = c.use_count >= c.max_uses;
+        var showAsRedeemed = isRedeemed && filter !== 'unused';
+        var card = document.createElement('div');
+        card.className = 'card' + (showAsRedeemed ? ' redeemed' : '');
+        var siteUrl = window.location.origin;
+        card.innerHTML =
+          (showAsRedeemed ? '<span class="redeemed-badge">Redeemed</span>' : '') +
+          '<div class="card-top">' +
+            '<div class="card-building">MeadowBrook &middot; Building 7</div>' +
+            '<div class="card-title">Welcome to your community board.</div>' +
+            '<div class="card-apt">Unit ' + c.apartment + '</div>' +
+          '</div>' +
+          '<div class="card-middle">' +
+            '<div class="card-code-label">Your Invite Code</div>' +
+            '<div class="card-code">' + c.code + '</div>' +
+          '</div>' +
+          '<div class="card-bottom">' +
+            'Visit <span class="card-url">' + siteUrl + '</span><br>' +
+            'Tap <strong>&ldquo;I Have an Invite Code&rdquo;</strong> to verify<br>' +
+            'your unit and unlock full board access.' +
+          '</div>';
+        grid.appendChild(card);
+      });
+
+      page.appendChild(grid);
+      pagesEl.appendChild(page);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', loadCodes);
+</script>
+</body>
+</html>

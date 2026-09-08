@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { useTheme } from './lib/useTheme';
-import InviteSignupFlow from './components/InviteSignupFlow';
+import SignupFlow from './components/SignupFlow';
 import LoginFlow from './components/LoginFlow';
 import ResetPasswordFlow from './components/ResetPasswordFlow';
 import MainBoard from './components/MainBoard';
@@ -26,7 +26,7 @@ function App() {
 
   if (view === 'signup') {
     return (
-      <InviteSignupFlow
+      <SignupFlow
         onContinueAsGuest={() => setView('board')}
         onVerified={() => setView('board')}
         onSwitchToLogin={() => setView('login')}

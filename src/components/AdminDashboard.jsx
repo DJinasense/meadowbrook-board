@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Flag, KeyRound, Users, MessageSquare, ArrowLeft, Search, CheckCircle, XCircle, Clock, Sun, Moon } from 'lucide-react';
+import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -7,13 +7,8 @@ import { useCurrentUser } from '../lib/useCurrentUser';
 export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading } = useCurrentUser();
 
-  const [tab, setTab] = useState('reports');
   const [reports, setReports] = useState([]);
   const [loadingReports, setLoadingReports] = useState(true);
-
-  const [inviteCodes, setInviteCodes] = useState([]);
-  const [loadingCodes, setLoadingCodes] = useState(true);
-  const [codeSearch, setCodeSearch] = useState('');
 
   const [residentCount, setResidentCount] = useState(0);
   const [threadCount, setThreadCount] = useState(0);
@@ -76,16 +71,6 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setLoadingReports(false);
   }
 
-  async function loadInviteCodes() {
-    setLoadingCodes(true);
-    const { data } = await supabase
-      .from('invite_codes')
-      .select('code, apartment, max_uses, use_count')
-      .order('apartment');
-    setInviteCodes(data || []);
-    setLoadingCodes(false);
-  }
-
   async function loadStats() {
     const [{ count: residents }, { count: threads }] = await Promise.all([
       supabase.from('users').select('id', { count: 'exact', head: true }),
@@ -98,7 +83,6 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   useEffect(() => {
     if (!currentUser?.is_admin) return;
     loadReports();
-    loadInviteCodes();
     loadStats();
   }, [currentUser]);
 
@@ -120,13 +104,6 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
   const pending = reports.filter((r) => r.status === 'pending');
   const resolved = reports.filter((r) => r.status !== 'pending');
-
-  const filteredCodes = inviteCodes.filter((c) =>
-    c.apartment.toLowerCase().includes(codeSearch.toLowerCase()) ||
-    c.code.toLowerCase().includes(codeSearch.toLowerCase())
-  );
-
-  const codesRedeemed = inviteCodes.filter((c) => c.use_count > 0).length;
 
   const statCard = (label, value, icon, tint) => (
     <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
@@ -165,7 +142,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           <Shield className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-slate-600 dark:text-slate-300 font-medium mb-1">Admins only</p>
           <p className="text-slate-400 dark:text-slate-500 text-sm mb-4">You don't have access to this page.</p>
-          <button onClick={() => onBack && onBack()} className="text-blue-700 dark:text-blue-400 font-medium text-sm hover:text-blue-800 dark:hover:text-blue-300">
+          <button onClick={() => { if (onBack) onBack(); }} className="text-blue-700 dark:text-blue-400 font-medium text-sm hover:text-blue-800 dark:hover:text-blue-300">
             ← Back to board
           </button>
         </div>
@@ -188,7 +165,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <button onClick={() => onBack && onBack()} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+            <button onClick={() => { if (onBack) onBack(); }} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
               <ArrowLeft className="w-4 h-4" /> Back to Board
             </button>
           </div>
@@ -196,30 +173,18 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
       </header>
 
       <div className="max-w-5xl mx-auto p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
           {statCard('Pending Reports', pending.length, <Flag className="w-5 h-5 text-rose-600" />, 'bg-rose-50 dark:bg-rose-900/30')}
-          {statCard('Codes Redeemed', `${codesRedeemed} / ${inviteCodes.length}`, <KeyRound className="w-5 h-5 text-emerald-600" />, 'bg-emerald-50 dark:bg-emerald-900/30')}
           {statCard('Verified Residents', residentCount, <Users className="w-5 h-5 text-blue-600" />, 'bg-blue-50 dark:bg-blue-900/30')}
           {statCard('Total Threads', threadCount, <MessageSquare className="w-5 h-5 text-purple-600" />, 'bg-purple-50 dark:bg-purple-900/30')}
         </div>
 
-        <div className="flex gap-2 mb-5 border-b border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setTab('reports')}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${tab === 'reports' ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-          >
-            Report Queue {pending.length > 0 && <span className="ml-1.5 bg-rose-600 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>}
-          </button>
-          <button
-            onClick={() => setTab('codes')}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${tab === 'codes' ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-          >
-            Invite Codes
-          </button>
+        <div className="flex items-center gap-2 mb-5 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Report Queue</h2>
+          {pending.length > 0 && <span className="bg-rose-600 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>}
         </div>
 
-        {tab === 'reports' && (
-          <div className="space-y-6">
+        <div className="space-y-6">
             {loadingReports ? (
               <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading reports...</p>
             ) : (
@@ -274,53 +239,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                 )}
               </>
             )}
-          </div>
-        )}
-
-        {tab === 'codes' && (
-          <div>
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-              <input
-                type="text"
-                value={codeSearch}
-                onChange={(e) => setCodeSearch(e.target.value)}
-                placeholder="Search by unit or code..."
-                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white/95 dark:bg-slate-800/95 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            {loadingCodes ? (
-              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading invite codes...</p>
-            ) : (
-              <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 font-semibold">Unit</th>
-                      <th className="text-left px-4 py-2.5 font-semibold">Code</th>
-                      <th className="text-left px-4 py-2.5 font-semibold">Usage</th>
-                      <th className="text-left px-4 py-2.5 font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCodes.map((c) => (
-                      <tr key={c.code} className="border-t border-slate-100 dark:border-slate-700">
-                        <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{c.apartment}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">{c.code}</td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{c.use_count} / {c.max_uses}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${c.use_count === 0 ? 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400' : c.use_count >= c.max_uses ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}>
-                            {c.use_count === 0 ? 'Unused' : c.use_count >= c.max_uses ? 'Fully Redeemed' : 'Active'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Mail, Lock, XCircle, KeyRound, Sun, Moon } from 'lucide-react';
+import { Mail, Lock, XCircle, UserPlus, Sun, Moon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme, onToggleTheme }) {
@@ -29,7 +29,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
       return;
     }
 
-    onLoggedIn && onLoggedIn();
+    if (onLoggedIn) onLoggedIn();
   }
 
   async function handleForgotPassword() {
@@ -72,11 +72,12 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
         {step === 'login' && (
           <div>
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-full mb-4">
-                <Home className="w-7 h-7 text-white" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 mb-4 p-3 shadow-xs">
+                <img src="/logo-icon.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain dark:hidden" />
+                <img src="/logo-icon-white.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain hidden dark:block" />
               </div>
               <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">Welcome back</h1>
-              <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">Log in with your verified account</p>
+              <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">Log in to your account</p>
             </div>
 
             <div className="space-y-4">
@@ -87,7 +88,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@email.com"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
@@ -98,7 +99,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -113,24 +114,24 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             <button
               onClick={handleLogin}
               disabled={submitting}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors mt-6 disabled:opacity-50"
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-6 disabled:opacity-50"
             >
               {submitting ? 'Logging in...' : 'Log In'}
             </button>
 
             <button
               onClick={() => { setStep('forgot'); setError(null); }}
-              className="w-full text-indigo-600 dark:text-indigo-400 text-sm mt-4 hover:text-indigo-700 dark:hover:text-indigo-300"
+              className="w-full text-blue-700 dark:text-blue-400 text-sm mt-4 hover:text-blue-800 dark:hover:text-blue-300"
             >
               Forgot password?
             </button>
 
             <div className="border-t border-gray-100 dark:border-slate-700 mt-6 pt-4 flex items-center justify-between text-sm">
-              <button onClick={() => onBack && onBack()} className="text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
+              <button onClick={() => { if (onBack) onBack(); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
                 ← Back
               </button>
-              <button onClick={() => onSwitchToSignup && onSwitchToSignup()} className="text-emerald-700 dark:text-emerald-400 font-medium hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1">
-                <KeyRound className="w-3.5 h-3.5" /> New here? Sign up
+              <button onClick={() => { if (onSwitchToSignup) onSwitchToSignup(); }} className="text-emerald-700 dark:text-emerald-400 font-medium hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1">
+                <UserPlus className="w-3.5 h-3.5" /> New here? Sign up
               </button>
             </div>
           </div>
@@ -148,7 +149,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@email.com"
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -162,7 +163,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             <button
               onClick={handleForgotPassword}
               disabled={submitting}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors mt-4 disabled:opacity-50"
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-4 disabled:opacity-50"
             >
               {submitting ? 'Sending...' : 'Send Reset Link'}
             </button>
@@ -187,7 +188,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             </p>
             <button
               onClick={() => setStep('login')}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
             >
               Back to Log In
             </button>

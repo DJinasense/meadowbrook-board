@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Lock, XCircle, CheckCircle, Sun, Moon } from 'lucide-react';
+import { Lock, XCircle, CheckCircle, Sun, Moon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
@@ -50,8 +50,9 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
         {!done ? (
           <div>
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-full mb-4">
-                <Home className="w-7 h-7 text-white" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 mb-4 p-3 shadow-xs">
+                <img src="/logo-icon.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain dark:hidden" />
+                <img src="/logo-icon-white.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain hidden dark:block" />
               </div>
               <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">Set a new password</h1>
               <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">You clicked a password reset link — choose a new password below.</p>
@@ -65,7 +66,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="New password"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="relative">
@@ -75,7 +76,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -90,7 +91,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors mt-6 disabled:opacity-50"
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-6 disabled:opacity-50"
             >
               {submitting ? 'Saving...' : 'Set New Password'}
             </button>
@@ -103,8 +104,8 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">Password updated</h2>
             <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">You're logged in with your new password.</p>
             <button
-              onClick={() => onDone && onDone()}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+              onClick={() => { if (onDone) onDone(); }}
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
             >
               Go to the Board
             </button>

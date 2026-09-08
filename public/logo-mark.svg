@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 260">
+  <!-- Canopy: overlapping circles forming a lobed tree-crown outline -->
+  <g fill="#F5EFDC" stroke="#2C5234" stroke-width="7" stroke-linejoin="round">
+    <circle cx="85" cy="150" r="46"/>
+    <circle cx="155" cy="150" r="46"/>
+    <circle cx="70" cy="100" r="42"/>
+    <circle cx="170" cy="100" r="42"/>
+    <circle cx="120" cy="70" r="46"/>
+  </g>
+
+  <!-- Simple trunk -->
+  <g fill="none" stroke="#2C5234" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M120,150 L120,222"/>
+    <path d="M96,222 L144,222"/>
+  </g>
+</svg>
