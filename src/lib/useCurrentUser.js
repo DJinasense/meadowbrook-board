@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { ensureProfile, fetchProfile } from './ensureProfile';
 
 export function useCurrentUser() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -9,14 +10,10 @@ export function useCurrentUser() {
   useEffect(() => {
     let active = true;
 
-    async function loadProfile(uid) {
-      const { data } = await supabase
-        .from('users')
-        .select('id, username, apartment, is_admin, is_muted, show_apartment, notify_on_reply, notify_daily_digest')
-        .eq('id', uid)
-        .single();
+    async function loadProfile(authUser) {
+      const { profile } = await ensureProfile(authUser);
       if (active) {
-        setCurrentUser(data || null);
+        setCurrentUser(profile || null);
         setLoading(false);
       }
     }
@@ -24,7 +21,7 @@ export function useCurrentUser() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUserId(session.user.id);
-        loadProfile(session.user.id);
+        loadProfile(session.user);
       } else if (active) {
         setLoading(false);
       }
@@ -33,7 +30,7 @@ export function useCurrentUser() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUserId(session.user.id);
-        loadProfile(session.user.id);
+        loadProfile(session.user);
       } else {
         setUserId(null);
         setCurrentUser(null);
@@ -49,11 +46,7 @@ export function useCurrentUser() {
 
   async function refresh() {
     if (!userId) return;
-    const { data } = await supabase
-      .from('users')
-      .select('id, username, apartment, is_admin, is_muted, show_apartment, notify_on_reply, notify_daily_digest')
-      .eq('id', userId)
-      .single();
+    const data = await fetchProfile(userId);
     if (data) setCurrentUser(data);
   }
 

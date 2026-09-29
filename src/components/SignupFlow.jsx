@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, User, Lock, CheckCircle, XCircle, Sun, Moon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { ensureProfile } from '../lib/ensureProfile';
 
 export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLogin, theme, onToggleTheme }) {
   const [step, setStep] = useState('landing'); // landing | signup | success
@@ -17,10 +18,28 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
     setSubmitting(true);
     setSignupError(null);
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: form.email,
+    const email = form.email.trim();
+    const username = form.username.trim();
+
+    let { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
       password: form.password,
+      options: { data: { username } },
     });
+
+    // Email already has a login (e.g. an earlier signup that didn't finish).
+    // If the password matches, it's the same person — log them in and finish
+    // setting up their profile instead of leaving them stuck.
+    if (authError && /already registered/i.test(authError.message)) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password: form.password });
+      if (signInError) {
+        setSignupError('An account with this email already exists. Please log in instead, or use "Forgot password?" on the login screen.');
+        setSubmitting(false);
+        return;
+      }
+      authData = signInData;
+      authError = null;
+    }
 
     if (authError) {
       setSignupError(authError.message);
@@ -36,9 +55,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
       return;
     }
 
-    const { error: profileError } = await supabase
-      .from('users')
-      .insert({ id: authData.user.id, email: form.email, username: form.username.trim() });
+    const { error: profileError } = await ensureProfile(authData.user, username);
 
     if (profileError) {
       setSignupError(profileError.message);
