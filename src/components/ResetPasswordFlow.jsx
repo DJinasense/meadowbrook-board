@@ -48,7 +48,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-8">
         {!done ? (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 mb-4 p-3 shadow-xs">
                 <img src="/logo-icon.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain dark:hidden" />
@@ -63,6 +63,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="New password"
@@ -73,6 +74,7 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
@@ -89,13 +91,13 @@ export default function ResetPasswordFlow({ onDone, theme, onToggleTheme }) {
             )}
 
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={submitting}
               className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-6 disabled:opacity-50"
             >
               {submitting ? 'Saving...' : 'Set New Password'}
             </button>
-          </div>
+          </form>
         ) : (
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full mb-4">

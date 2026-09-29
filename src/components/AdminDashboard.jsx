@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon } from 'lucide-react';
+import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon, Search, EyeOff, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -12,6 +12,17 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
   const [residentCount, setResidentCount] = useState(0);
   const [threadCount, setThreadCount] = useState(0);
+
+  const [tab, setTab] = useState('reports'); // 'reports' | 'members' | 'posts'
+
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [memberSearch, setMemberSearch] = useState('');
+
+  const [posts, setPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [postFilter, setPostFilter] = useState('all'); // 'all' | 'visible' | 'removed'
+  const [actionError, setActionError] = useState(null);
 
   function authorLabel(row, directory) {
     if (!row) return 'Unknown';
@@ -80,10 +91,59 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setThreadCount(threads || 0);
   }
 
+  async function loadMembers() {
+    setLoadingMembers(true);
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, email, apartment, is_admin, created_at')
+      .order('created_at', { ascending: false });
+    if (error) console.error(error);
+    setMembers(data || []);
+    setLoadingMembers(false);
+  }
+
+  async function loadPosts() {
+    setLoadingPosts(true);
+    const { data: threadRows, error } = await supabase
+      .from('threads')
+      .select('id, title, content, category, user_id, guest_name, is_anonymous, status, created_at')
+      .order('created_at', { ascending: false });
+    if (error) { console.error(error); setLoadingPosts(false); return; }
+
+    const threadIds = threadRows.map((t) => t.id);
+    const authorIds = [...new Set(threadRows.filter((t) => t.user_id && !t.is_anonymous).map((t) => t.user_id))];
+    const [{ data: replyRows }, directory] = await Promise.all([
+      threadIds.length
+        ? supabase.from('replies').select('thread_id').in('thread_id', threadIds)
+        : Promise.resolve({ data: [] }),
+      fetchDirectory(authorIds),
+    ]);
+
+    const replyCounts = {};
+    (replyRows || []).forEach((r) => { replyCounts[r.thread_id] = (replyCounts[r.thread_id] || 0) + 1; });
+
+    setPosts(threadRows.map((t) => ({
+      ...t,
+      authorLabel: authorLabel(t, directory),
+      replyCount: replyCounts[t.id] || 0,
+    })));
+    setLoadingPosts(false);
+  }
+
+  async function setPostStatus(post, status) {
+    setActionError(null);
+    const { error } = await supabase.from('threads').update({ status }).eq('id', post.id);
+    if (error) { setActionError(error.message); return; }
+    loadPosts();
+    loadStats();
+  }
+
   useEffect(() => {
     if (!currentUser?.is_admin) return;
     loadReports();
     loadStats();
+    loadMembers();
+    loadPosts();
   }, [currentUser]);
 
   async function handleApprove(report) {
@@ -95,6 +155,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
     loadReports();
     loadStats();
+    loadPosts();
   }
 
   async function handleDismiss(report) {
@@ -104,6 +165,31 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
   const pending = reports.filter((r) => r.status === 'pending');
   const resolved = reports.filter((r) => r.status !== 'pending');
+
+  const filteredMembers = members.filter((m) => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [m.username, m.email, m.apartment].some((v) => v && v.toLowerCase().includes(q));
+  });
+
+  const filteredPosts = posts.filter((p) =>
+    postFilter === 'all' ? true : postFilter === 'removed' ? p.status === 'removed' : p.status !== 'removed'
+  );
+
+  const tabButton = (id, label, badge) => (
+    <button
+      key={id}
+      onClick={() => setTab(id)}
+      className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+        tab === id
+          ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400'
+          : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+      }`}
+    >
+      {label}
+      {badge > 0 && <span className="bg-rose-600 text-white text-xs px-1.5 py-0.5 rounded-full">{badge}</span>}
+    </button>
+  );
 
   const statCard = (label, value, icon, tint) => (
     <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
@@ -164,7 +250,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            {ThemeToggle()}
             <button onClick={() => { if (onBack) onBack(); }} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
               <ArrowLeft className="w-4 h-4" /> Back to Board
             </button>
@@ -175,15 +261,111 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
       <div className="max-w-5xl mx-auto p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
           {statCard('Pending Reports', pending.length, <Flag className="w-5 h-5 text-rose-600" />, 'bg-rose-50 dark:bg-rose-900/30')}
-          {statCard('Verified Residents', residentCount, <Users className="w-5 h-5 text-blue-600" />, 'bg-blue-50 dark:bg-blue-900/30')}
+          {statCard('Members', residentCount, <Users className="w-5 h-5 text-blue-600" />, 'bg-blue-50 dark:bg-blue-900/30')}
           {statCard('Total Threads', threadCount, <MessageSquare className="w-5 h-5 text-purple-600" />, 'bg-purple-50 dark:bg-purple-900/30')}
         </div>
 
-        <div className="flex items-center gap-2 mb-5 pb-3 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Report Queue</h2>
-          {pending.length > 0 && <span className="bg-rose-600 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>}
+        <div className="flex items-center gap-1 mb-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+          {tabButton('reports', 'Reports', pending.length)}
+          {tabButton('members', `Members (${members.length})`, 0)}
+          {tabButton('posts', `Posts (${posts.length})`, 0)}
         </div>
 
+        {tab === 'members' && (
+          <div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+              <input
+                type="text"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Search by name, email, or apartment..."
+                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white/95 dark:bg-slate-800/95 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            {loadingMembers ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading members...</p>
+            ) : filteredMembers.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">
+                {members.length === 0 ? 'No one has signed up yet.' : 'No members match that search.'}
+              </p>
+            ) : (
+              <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
+                {filteredMembers.map((m) => (
+                  <div key={m.id} className="p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        {m.username}
+                        {m.is_admin && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-white dark:bg-slate-600">Admin</span>}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-slate-600 dark:text-slate-300">{m.apartment || 'No apartment'}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Joined {new Date(m.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'posts' && (
+          <div>
+            <div className="flex gap-2 mb-4">
+              {[['all', 'All'], ['visible', 'Live'], ['removed', 'Removed']].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setPostFilter(id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    postFilter === id ? 'bg-blue-700 text-white' : 'bg-white/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {actionError && <p className="text-sm text-red-500 dark:text-red-400 mb-3">{actionError}</p>}
+            {loadingPosts ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading posts...</p>
+            ) : filteredPosts.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">No posts here.</p>
+            ) : (
+              <div className="space-y-3">
+                {filteredPosts.map((p) => (
+                  <div key={p.id} className={`bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-4 ${p.status === 'removed' ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{p.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">{p.content}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                          {p.authorLabel} · {new Date(p.created_at).toLocaleDateString()} · {p.replyCount} {p.replyCount === 1 ? 'reply' : 'replies'}
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-2">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.status === 'removed' ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                          {p.status === 'removed' ? 'Removed' : 'Live'}
+                        </span>
+                        {p.status === 'removed' ? (
+                          <button onClick={() => setPostStatus(p, 'visible')} className="flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white">
+                            <Eye className="w-3.5 h-3.5" /> Restore
+                          </button>
+                        ) : (
+                          <button onClick={() => setPostStatus(p, 'removed')} className="flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700">
+                            <EyeOff className="w-3.5 h-3.5" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'reports' && (
         <div className="space-y-6">
             {loadingReports ? (
               <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading reports...</p>
@@ -240,6 +422,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
               </>
             )}
         </div>
+        )}
       </div>
     </div>
   );

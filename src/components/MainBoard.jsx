@@ -4,6 +4,17 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 
+// Defined at module scope on purpose: a component declared inside MainBoard
+// gets a new identity every render, which remounts every input it wraps and
+// drops focus after each keystroke.
+function PageBG({ children }) {
+  return (
+    <div className="min-h-screen relative bg-gradient-to-b from-slate-50 via-white to-emerald-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-200">
+      {children}
+    </div>
+  );
+}
+
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest }
   const [currentView, setCurrentView] = useState('landing');
@@ -386,12 +397,6 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   // ---------- shared pieces ----------
 
-  const PageBG = ({ children }) => (
-    <div className="min-h-screen relative bg-gradient-to-b from-slate-50 via-white to-emerald-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-200">
-      {children}
-    </div>
-  );
-
   const ThemeToggle = () => onToggleTheme && (
     <button
       onClick={onToggleTheme}
@@ -542,11 +547,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const Overlays = () => (
     <>
-      <SignupPrompt />
-      <ReportModal />
-      <ConfirmModal />
-      <SettingsModal />
-      <Toast />
+      {SignupPrompt()}
+      {ReportModal()}
+      {ConfirmModal()}
+      {SettingsModal()}
+      {Toast()}
     </>
   );
 
@@ -567,7 +572,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="flex items-center gap-1.5 relative">
           {currentUser ? (
             <>
-              <ThemeToggle />
+              {ThemeToggle()}
               <button
                 onClick={() => setShowAccountMenu((v) => !v)}
                 className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white pl-1.5"
@@ -606,7 +611,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </>
           ) : (
             <>
-              <ThemeToggle />
+              {ThemeToggle()}
               <button
                 onClick={() => { if (onRequestSignup) onRequestSignup(); }}
                 className="text-sm text-emerald-700 dark:text-emerald-400 font-medium hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1 ml-1"
@@ -641,10 +646,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   if (currentView === 'landing') {
     return (
       <PageBG>
-        <Overlays />
+        {Overlays()}
         {onToggleTheme && (
           <div className="absolute top-4 right-4 z-10">
-            <ThemeToggle />
+            {ThemeToggle()}
           </div>
         )}
         <div className="flex-1 flex items-center justify-center px-6 py-16 min-h-screen">
@@ -701,8 +706,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   if (currentView === 'thread' && openThread) {
     return (
       <PageBG>
-        <TopBar />
-        <Overlays />
+        {TopBar()}
+        {Overlays()}
         <div className="max-w-3xl mx-auto p-4">
           <button onClick={backToBoard} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-4 text-sm">
             <ArrowLeft className="w-4 h-4 mr-1" /> Back to board
@@ -798,8 +803,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   if (currentView === 'create') {
     return (
       <PageBG>
-        <TopBar />
-        <Overlays />
+        {TopBar()}
+        {Overlays()}
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
             <button onClick={() => setCurrentView('board')} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-5 text-sm">
@@ -883,8 +888,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   return (
     <PageBG>
-      <TopBar />
-      <Overlays />
+      {TopBar()}
+      {Overlays()}
 
       <div className="max-w-5xl mx-auto p-4">
         <div className="bg-gradient-to-r from-blue-700 to-blue-600 dark:from-blue-800 dark:to-blue-900 rounded-xl p-5 mb-5 text-white relative overflow-hidden">

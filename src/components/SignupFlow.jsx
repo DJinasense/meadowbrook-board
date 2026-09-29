@@ -105,7 +105,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
 
         {/* STEP: create account */}
         {step === 'signup' && (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleCreateAccount(); }}>
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-1">Create Your Account</h2>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Takes less than a minute</p>
 
@@ -114,6 +114,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="email"
+                  autoComplete="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="you@email.com"
@@ -125,6 +126,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="text"
+                  autoComplete="nickname"
                   value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
                   placeholder="Display name"
@@ -136,6 +138,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="Password"
@@ -152,7 +155,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             )}
 
             <button
-              onClick={handleCreateAccount}
+              type="submit"
               disabled={submitting}
               className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-6 disabled:opacity-50"
             >
@@ -160,12 +163,13 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </button>
 
             <button
+              type="button"
               onClick={() => setStep('landing')}
               className="w-full text-gray-500 dark:text-slate-400 text-sm mt-4 hover:text-gray-700 dark:hover:text-slate-200"
             >
               ← Back
             </button>
-          </div>
+          </form>
         )}
 
         {/* SUCCESS */}

@@ -70,7 +70,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-8">
 
         {step === 'login' && (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 mb-4 p-3 shadow-xs">
                 <img src="/logo-icon.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain dark:hidden" />
@@ -85,6 +85,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@email.com"
@@ -96,6 +97,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
                 <input
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
@@ -112,7 +114,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             )}
 
             <button
-              onClick={handleLogin}
+              type="submit"
               disabled={submitting}
               className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-6 disabled:opacity-50"
             >
@@ -120,6 +122,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             </button>
 
             <button
+              type="button"
               onClick={() => { setStep('forgot'); setError(null); }}
               className="w-full text-blue-700 dark:text-blue-400 text-sm mt-4 hover:text-blue-800 dark:hover:text-blue-300"
             >
@@ -127,18 +130,18 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             </button>
 
             <div className="border-t border-gray-100 dark:border-slate-700 mt-6 pt-4 flex items-center justify-between text-sm">
-              <button onClick={() => { if (onBack) onBack(); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
+              <button type="button" onClick={() => { if (onBack) onBack(); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
                 ← Back
               </button>
-              <button onClick={() => { if (onSwitchToSignup) onSwitchToSignup(); }} className="text-emerald-700 dark:text-emerald-400 font-medium hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1">
+              <button type="button" onClick={() => { if (onSwitchToSignup) onSwitchToSignup(); }} className="text-emerald-700 dark:text-emerald-400 font-medium hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1">
                 <UserPlus className="w-3.5 h-3.5" /> New here? Sign up
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {step === 'forgot' && (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleForgotPassword(); }}>
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-1">Reset your password</h2>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">We'll email you a link to set a new one.</p>
 
@@ -146,6 +149,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
               <input
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@email.com"
@@ -161,7 +165,7 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             )}
 
             <button
-              onClick={handleForgotPassword}
+              type="submit"
               disabled={submitting}
               className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-4 disabled:opacity-50"
             >
@@ -169,12 +173,13 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
             </button>
 
             <button
+              type="button"
               onClick={() => { setStep('login'); setError(null); }}
               className="w-full text-gray-500 dark:text-slate-400 text-sm mt-4 hover:text-gray-700 dark:hover:text-slate-200"
             >
               ← Back to login
             </button>
-          </div>
+          </form>
         )}
 
         {step === 'forgot-sent' && (
