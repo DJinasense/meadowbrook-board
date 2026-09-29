@@ -12,7 +12,7 @@ export function useCurrentUser() {
     async function loadProfile(uid) {
       const { data } = await supabase
         .from('users')
-        .select('id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest')
+        .select('id, username, apartment, is_admin, is_muted, show_apartment, notify_on_reply, notify_daily_digest')
         .eq('id', uid)
         .single();
       if (active) {
@@ -51,7 +51,7 @@ export function useCurrentUser() {
     if (!userId) return;
     const { data } = await supabase
       .from('users')
-      .select('id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest')
+      .select('id, username, apartment, is_admin, is_muted, show_apartment, notify_on_reply, notify_daily_digest')
       .eq('id', userId)
       .single();
     if (data) setCurrentUser(data);

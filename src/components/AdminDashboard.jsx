@@ -18,6 +18,9 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [memberSearch, setMemberSearch] = useState('');
+  const [memberError, setMemberError] = useState(null);
+  const [busyMemberId, setBusyMemberId] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -95,11 +98,22 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setLoadingMembers(true);
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, email, apartment, is_admin, created_at')
+      .select('id, username, email, apartment, is_admin, is_muted, created_at')
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     setMembers(data || []);
     setLoadingMembers(false);
+  }
+
+  async function runMemberAction(member, fn, args) {
+    setMemberError(null);
+    setBusyMemberId(member.id);
+    const { error } = await supabase.rpc(fn, args);
+    setBusyMemberId(null);
+    setPendingDeleteId(null);
+    if (error) { setMemberError(`${member.username}: ${error.message}`); return; }
+    loadMembers();
+    loadStats();
   }
 
   async function loadPosts() {
@@ -283,6 +297,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                 className="w-full pl-9 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white/95 dark:bg-slate-800/95 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+            {memberError && <p className="text-sm text-red-500 dark:text-red-400 mb-3">{memberError}</p>}
             {loadingMembers ? (
               <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading members...</p>
             ) : filteredMembers.length === 0 ? (
@@ -292,18 +307,48 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
             ) : (
               <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
                 {filteredMembers.map((m) => (
-                  <div key={m.id} className="p-4 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        {m.username}
-                        {m.is_admin && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-white dark:bg-slate-600">Admin</span>}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                  <div key={m.id} className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2 flex-wrap">
+                          {m.username}
+                          {m.id === currentUser.id && <span className="text-xs font-normal text-slate-400 dark:text-slate-500">(you)</span>}
+                          {m.is_admin && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-white dark:bg-slate-600">Admin</span>}
+                          {m.is_muted && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Muted</span>}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-slate-600 dark:text-slate-300">{m.apartment || 'No apartment'}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Joined {new Date(m.created_at).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-slate-600 dark:text-slate-300">{m.apartment || 'No apartment'}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">Joined {new Date(m.created_at).toLocaleDateString()}</p>
-                    </div>
+
+                    {m.id !== currentUser.id && (
+                      pendingDeleteId === m.id ? (
+                        <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-rose-600 dark:text-rose-400">Delete {m.username}'s account? This can't be undone. Their posts stay up as "Anonymous".</span>
+                          <button disabled={busyMemberId === m.id} onClick={() => runMemberAction(m, 'admin_delete_member', { target: m.id })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50">
+                            Yes, delete
+                          </button>
+                          <button onClick={() => setPendingDeleteId(null)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          <button disabled={busyMemberId === m.id} onClick={() => runMemberAction(m, 'admin_set_muted', { target: m.id, muted: !m.is_muted })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50">
+                            {m.is_muted ? 'Unmute' : 'Mute'}
+                          </button>
+                          <button disabled={busyMemberId === m.id} onClick={() => runMemberAction(m, 'admin_set_admin', { target: m.id, make_admin: !m.is_admin })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50">
+                            {m.is_admin ? 'Remove admin' : 'Make admin'}
+                          </button>
+                          <button disabled={busyMemberId === m.id} onClick={() => setPendingDeleteId(m.id)} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50">
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    )}
                   </div>
                 ))}
               </div>

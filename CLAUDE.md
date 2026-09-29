@@ -26,7 +26,7 @@ account. This is deliberate, "for now" — see the Signup section below.
   The single shared client is `src/lib/supabaseClient.js`.
 - **Icons for lucide-react**, no other UI library.
 - **GitHub**: `github.com/DJinasense/meadowbrook-board`, branch `main`.
-- **Vercel**: deployed at `meadowbrook-board.vercel.app`. Vite build preset,
+- **Vercel**: live at `https://mbb7.dgrvip.net` (auto-deploys on push to `main`). The old `meadowbrook-board.vercel.app` alias returns DEPLOYMENT_NOT_FOUND as of 2026-09-29 — don't use it to check deploys. Vite build preset,
   env vars set in Vercel project settings (must match `.env.local` exactly —
   we already hit a bug once where the key got truncated to `ITE_SUPABASE_URL`
   in Vercel's UI; double-check the full var name if anything breaks there).
@@ -120,6 +120,30 @@ interactively via the Supabase SQL Editor over several turns.
 (mostly but not 100% complete) snapshot; the source of truth is the live
 database, not that file. If you need the exact current schema, query
 Supabase directly rather than trusting that file.
+
+**Security (2026-09-29):** `supabase_security_fix.sql` has been run on the live
+project and verified with real requests. It supersedes section 3 of
+`supabase_open_signup.sql`, whose column-level REVOKEs did nothing (Supabase
+grants table-wide INSERT/UPDATE to `authenticated`; column REVOKEs don't
+override that) — a test account really did promote itself to admin before the
+fix. `users` now has only column-level grants (INSERT id/email/username; UPDATE
+username/show_apartment/notify_on_reply/notify_daily_digest). Thread/reply
+inserts require `user_id IS NULL OR user_id = auth.uid()` (previously a
+logged-out visitor could post under any member's name); reports require
+`reported_by` null-or-self and `status = 'pending'`. If you add a user-editable
+column, it must also be added to the UPDATE grant or saves will 403.
+
+**Member management (2026-09-29):** `supabase_member_admin.sql` (run on the
+live project) adds `users.is_muted`, an `is_muted(uid)` helper, and three
+SECURITY DEFINER RPCs used by the admin Members tab: `admin_set_muted`,
+`admin_set_admin`, `admin_delete_member`. Each raises 'Admins only' for
+non-admins and refuses to act on the caller's own account (no self-lockout);
+EXECUTE is revoked from anon. Verified: logged-out calls get 401, a signed-in
+non-admin gets 'Admins only'. Muted members are blocked from thread/reply
+inserts by RLS (`NOT is_muted(auth.uid())`); guests can still post
+anonymously, so mute only stops the named account. Deleting a member keeps
+their posts (user_id SET NULL → shows "Anonymous"). `useCurrentUser` selects
+`is_muted`, so that column must exist before any deploy of the client.
 
 `supabase_open_signup.sql` is a second, separate file (added when invite
 codes were parked, see Signup section below) — unlike `supabase_additions.sql`

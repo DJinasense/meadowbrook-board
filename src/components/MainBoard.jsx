@@ -15,6 +15,8 @@ function PageBG({ children }) {
   );
 }
 
+const MUTED_NOTICE = 'An admin has paused posting on your account. You can still read the board.';
+
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest }
   const [currentView, setCurrentView] = useState('landing');
@@ -199,6 +201,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   // ---------- mutations ----------
 
   async function handleCreateThread() {
+    if (currentUser?.is_muted) { setThreadFormError(MUTED_NOTICE); return; }
     if (!newThread.title || !newThread.content) {
       setThreadFormError('Please fill in a title and message');
       return;
@@ -234,6 +237,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   async function handleReply() {
+    if (currentUser?.is_muted) { setReplyFormError(MUTED_NOTICE); return; }
     if (!newReply.content) { setReplyFormError('Please enter a reply'); return; }
     setSubmittingReply(true);
     setReplyFormError(null);
@@ -741,6 +745,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-sm">Add a Reply</h3>
+            {currentUser?.is_muted && (
+              <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-4">
+                {MUTED_NOTICE}
+              </p>
+            )}
             {!currentUser && (
               <input
                 type="text"
@@ -765,7 +774,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   Reply anonymously
                 </label>
               ) : <span className="text-xs text-slate-400 dark:text-slate-500">Posting as guest</span>}
-              <button onClick={handleReply} disabled={submittingReply} className="flex items-center gap-1.5 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50">
+              <button onClick={handleReply} disabled={submittingReply || currentUser?.is_muted} className="flex items-center gap-1.5 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50">
                 <Send className="w-3.5 h-3.5" /> {submittingReply ? 'Sending...' : 'Reply'}
               </button>
             </div>
@@ -811,7 +820,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-5">Start a New Thread</h2>
-
+            {currentUser?.is_muted && (
+              <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-5">
+                {MUTED_NOTICE}
+              </p>
+            )}
             <div className="space-y-4">
               {!currentUser && (
                 <div>
@@ -876,7 +889,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
               {threadFormError && <p className="text-xs text-red-500 dark:text-red-400">{threadFormError}</p>}
 
-              <button onClick={handleCreateThread} disabled={submittingThread} className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-800 transition-colors disabled:opacity-50">
+              <button onClick={handleCreateThread} disabled={submittingThread || currentUser?.is_muted} className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-800 transition-colors disabled:opacity-50">
                 {submittingThread ? 'Posting...' : 'Post Thread'}
               </button>
             </div>
