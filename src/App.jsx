@@ -6,9 +6,11 @@ import LoginFlow from './components/LoginFlow';
 import ResetPasswordFlow from './components/ResetPasswordFlow';
 import MainBoard from './components/MainBoard';
 import AdminDashboard from './components/AdminDashboard';
+import Messages from './components/Messages';
 
 function App() {
-  const [view, setView] = useState('board'); // 'board' | 'signup' | 'login' | 'reset-password' | 'admin'
+  const [view, setView] = useState('board'); // 'board' | 'signup' | 'login' | 'reset-password' | 'admin' | 'messages'
+  const [messageTarget, setMessageTarget] = useState(null);
   const { theme, toggleTheme } = useTheme();
 
   // A password-reset email link lands back on this app with a recovery
@@ -56,11 +58,23 @@ function App() {
     return <AdminDashboard onBack={() => setView('board')} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
+  if (view === 'messages') {
+    return (
+      <Messages
+        startWithUserId={messageTarget}
+        onBack={() => { setMessageTarget(null); setView('board'); }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   return (
     <MainBoard
       onRequestSignup={() => setView('signup')}
       onRequestLogin={() => setView('login')}
       onOpenAdmin={() => setView('admin')}
+      onOpenMessages={(userId) => { setMessageTarget(userId || null); setView('messages'); }}
       theme={theme}
       onToggleTheme={toggleTheme}
     />

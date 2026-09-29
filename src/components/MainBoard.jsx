@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
+import { validateFiles, uploadAttachments, fetchAttachments } from '../lib/attachments';
+import { FilePicker, AttachmentList } from './Attachments';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -17,7 +19,7 @@ function PageBG({ children }) {
 
 const MUTED_NOTICE = 'An admin has paused posting on your account. You can still read the board.';
 
-export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, theme, onToggleTheme }) {
+export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest }
   const [currentView, setCurrentView] = useState('landing');
   const [initialRouteDecided, setInitialRouteDecided] = useState(false);
@@ -49,6 +51,22 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const [confirmTarget, setConfirmTarget] = useState(null); // { type: 'thread' } | { type: 'reply', reply }
+
+  const [newThreadFiles, setNewThreadFiles] = useState([]);
+  const [newReplyFiles, setNewReplyFiles] = useState([]);
+  const [attachments, setAttachments] = useState({ byThread: {}, byReply: {} });
+  const [editingThread, setEditingThread] = useState(null); // { title, content } while editing the open thread
+  const [editingReplyId, setEditingReplyId] = useState(null);
+  const [editReplyText, setEditReplyText] = useState('');
+  const [editError, setEditError] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) { setUnreadCount(0); return; }
+    supabase.from('direct_messages').select('id', { count: 'exact', head: true })
+      .eq('recipient_id', currentUser.id).eq('read', false)
+      .then(({ count }) => setUnreadCount(count || 0));
+  }, [currentUser]);
 
   const categories = [
     { id: 'all', name: 'All Posts', color: 'bg-slate-500' },
@@ -118,7 +136,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     (likeRows || []).forEach((l) => { likeCounts[l.thread_id] = (likeCounts[l.thread_id] || 0) + 1; });
 
     const authorIds = [...new Set(threadRows.filter((t) => t.user_id && !t.is_anonymous).map((t) => t.user_id))];
-    const directory = await fetchDirectory(authorIds);
+    const [directory, { byThread }] = await Promise.all([fetchDirectory(authorIds), fetchAttachments({ threadIds })]);
 
     let likedThreadIds = new Set();
     if (currentUser) {
@@ -136,6 +154,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       likeCount: likeCounts[t.id] || 0,
       likedByMe: likedThreadIds.has(t.id),
       authorLabel: authorLabel(t, directory),
+      attachments: byThread[t.id] || [],
     })));
     setLoadingBoard(false);
   }, [currentUser]);
@@ -176,6 +195,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       likedReplyIds = new Set((myLikes || []).map((l) => l.reply_id));
     }
 
+    setAttachments(await fetchAttachments({ threadIds: [threadId], replyIds }));
+
     setOpenReplies(replyRows.map((r) => ({
       ...r,
       likeCount: likeCounts[r.id] || 0,
@@ -186,7 +207,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const openThread = threads.find((t) => t.id === selectedThreadId) || null;
 
+  function resetEditing() {
+    setEditingThread(null);
+    setEditingReplyId(null);
+    setEditError(null);
+  }
+
   function goToThread(thread) {
+    resetEditing();
+    setNewReplyFiles([]);
+    setAttachments({ byThread: {}, byReply: {} });
     setSelectedThreadId(thread.id);
     setCurrentView('thread');
     loadThreadDetail(thread.id);
@@ -206,6 +236,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       setThreadFormError('Please fill in a title and message');
       return;
     }
+    const fileProblem = currentUser ? validateFiles(newThreadFiles) : null;
+    if (fileProblem) { setThreadFormError(fileProblem); return; }
     setSubmittingThread(true);
     setThreadFormError(null);
 
@@ -226,11 +258,17 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           is_anonymous: true,
         };
 
-    const { error } = await supabase.from('threads').insert(payload);
+    const { data: created, error } = await supabase.from('threads').insert(payload).select('id').single();
+
+    if (error) { setSubmittingThread(false); setThreadFormError(error.message); return; }
+
+    if (currentUser && newThreadFiles.length) {
+      const failed = await uploadAttachments(newThreadFiles, currentUser.id, { threadId: created.id });
+      if (failed.length) showToast(`Posted, but these files didn't upload: ${failed.join(', ')}`);
+    }
     setSubmittingThread(false);
 
-    if (error) { setThreadFormError(error.message); return; }
-
+    setNewThreadFiles([]);
     setNewThread({ title: '', content: '', category: 'general', isAnonymous: false });
     setCurrentView('board');
     loadBoard();
@@ -240,6 +278,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     if (!currentUser) { setShowSignupPrompt(true); return; }
     if (currentUser.is_muted) { setReplyFormError(MUTED_NOTICE); return; }
     if (!newReply.content) { setReplyFormError('Please enter a reply'); return; }
+    const fileProblem = validateFiles(newReplyFiles);
+    if (fileProblem) { setReplyFormError(fileProblem); return; }
     setSubmittingReply(true);
     setReplyFormError(null);
 
@@ -250,11 +290,17 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       is_anonymous: newReply.isAnonymous,
     };
 
-    const { error } = await supabase.from('replies').insert(payload);
+    const { data: created, error } = await supabase.from('replies').insert(payload).select('id').single();
+
+    if (error) { setSubmittingReply(false); setReplyFormError(error.message); return; }
+
+    if (newReplyFiles.length) {
+      const failed = await uploadAttachments(newReplyFiles, currentUser.id, { replyId: created.id });
+      if (failed.length) showToast(`Replied, but these files didn't upload: ${failed.join(', ')}`);
+    }
     setSubmittingReply(false);
 
-    if (error) { setReplyFormError(error.message); return; }
-
+    setNewReplyFiles([]);
     setNewReply({ content: '', isAnonymous: false });
     await loadThreadDetail(selectedThreadId);
     loadBoard();
@@ -301,6 +347,34 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   function requestDeleteThread() {
     if (!openThread || !currentUser || openThread.user_id !== currentUser.id) return;
     setConfirmTarget({ type: 'thread' });
+  }
+
+  async function saveThreadEdit() {
+    const title = editingThread.title.trim();
+    const content = editingThread.content.trim();
+    if (!title || !content) { setEditError('Title and message can\'t be empty.'); return; }
+    const { error } = await supabase
+      .from('threads')
+      .update({ title, content, updated_at: new Date().toISOString() })
+      .eq('id', openThread.id);
+    if (error) { setEditError(error.message); return; }
+    resetEditing();
+    loadBoard();
+  }
+
+  async function saveReplyEdit(reply) {
+    const content = editReplyText.trim();
+    if (!content) { setEditError('A reply can\'t be empty.'); return; }
+    const { error } = await supabase.from('replies').update({ content }).eq('id', reply.id);
+    if (error) { setEditError(error.message); return; }
+    resetEditing();
+    loadThreadDetail(selectedThreadId);
+  }
+
+  // A member's name links to a private message, unless it's them, they posted
+  // anonymously, or the viewer is a guest.
+  function canMessage(row) {
+    return currentUser && row.user_id && !row.is_anonymous && row.user_id !== currentUser.id && onOpenMessages;
   }
 
   function requestDeleteReply(reply) {
@@ -415,7 +489,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </div>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">This one needs an account</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
-          Liking posts, deleting your own posts, notifications, and direct messages are unlocked once you create a free account.
+          A free account lets you reply to posts, like posts, attach photos and PDFs, send private messages to neighbors, and edit or delete your own posts.
         </p>
         <button
           onClick={() => { setShowSignupPrompt(false); if (onRequestSignup) onRequestSignup(); }}
@@ -569,6 +643,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="flex items-center gap-1.5 relative">
           {currentUser ? (
             <>
+              <button
+                onClick={() => { if (onOpenMessages) onOpenMessages(); }}
+                title="Messages"
+                className="relative w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Mail className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
               {ThemeToggle()}
               <button
                 onClick={() => setShowAccountMenu((v) => !v)}
@@ -662,9 +748,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6 mb-6 text-left">
               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                 A place to share insights, ideas, and concerns locally among fellow unit owners.
-                Browse and post freely, no account required. Create a free account
-                to unlock notifications, file sharing, and direct messages.
+                Anyone can read the board and start a thread, no account required.
               </p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">A free member account also lets you:</p>
+              <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
+                <li className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Reply to posts and join the conversation</li>
+                <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Attach photos and PDFs — notices, letters, pictures of issues</li>
+                <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Send private messages to other members</li>
+                <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Edit or delete your own posts</li>
+                <li className="flex gap-2"><ThumbsUp className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Like posts you agree with</li>
+              </ul>
               <p className="text-sm text-slate-400 dark:text-slate-500 mt-3 italic">
                 Fueled by transparency and honesty.
               </p>
@@ -714,12 +807,42 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             <span className={`${categories.find((c) => c.id === openThread.category)?.color} text-white px-2.5 py-1 rounded-full text-xs font-semibold`}>
               {categories.find((c) => c.id === openThread.category)?.name}
             </span>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-2">{openThread.title}</h1>
-            <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-3 mb-4">
-              <span className="font-medium text-slate-600 dark:text-slate-300">{openThread.authorLabel}</span>
-              <span>{formatTimestamp(openThread.created_at)}</span>
-            </div>
-            <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap mb-4">{openThread.content}</p>
+            {editingThread ? (
+              <div className="mt-3 mb-4 space-y-3">
+                <input
+                  value={editingThread.title}
+                  onChange={(e) => setEditingThread({ ...editingThread, title: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-base font-semibold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <textarea
+                  value={editingThread.content}
+                  onChange={(e) => setEditingThread({ ...editingThread, content: e.target.value })}
+                  rows="6"
+                  className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm resize-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
+                <div className="flex gap-2">
+                  <button onClick={saveThreadEdit} className="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800">Save changes</button>
+                  <button onClick={resetEditing} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-2">{openThread.title}</h1>
+                <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-3 mb-4">
+                  <span className="font-medium text-slate-600 dark:text-slate-300">{openThread.authorLabel}</span>
+                  <span>{formatTimestamp(openThread.created_at)}</span>
+                  {canMessage(openThread) && (
+                    <button onClick={() => onOpenMessages(openThread.user_id)} className="flex items-center gap-1 text-blue-700 dark:text-blue-400 hover:underline">
+                      <Mail className="w-3.5 h-3.5" /> Message
+                    </button>
+                  )}
+                </div>
+                <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{openThread.content}</p>
+                <AttachmentList files={attachments.byThread[openThread.id]} />
+                <div className="mb-4" />
+              </>
+            )}
 
             <div className="flex items-center gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
               <button onClick={() => toggleThreadLike(openThread.id)} className={`flex items-center gap-1.5 text-sm ${openThread.likedByMe ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400'}`}>
@@ -729,9 +852,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 <Flag className="w-4 h-4" /> Report
               </button>
               {currentUser && openThread.user_id === currentUser.id && (
-                <button onClick={requestDeleteThread} className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 text-sm ml-auto">
-                  Delete my post
-                </button>
+                <div className="flex items-center gap-4 ml-auto">
+                  {!currentUser.is_muted && !editingThread && (
+                    <button onClick={() => { resetEditing(); setEditingThread({ title: openThread.title, content: openThread.content }); }} className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-blue-700 dark:hover:text-blue-400 text-sm">
+                      <Pencil className="w-3.5 h-3.5" /> Edit
+                    </button>
+                  )}
+                  <button onClick={requestDeleteThread} className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 text-sm">
+                    Delete my post
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -764,6 +894,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               rows="3"
               className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm resize-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <div className="mt-2">
+              <FilePicker files={newReplyFiles} onChange={setNewReplyFiles} disabled={submittingReply || currentUser.is_muted} />
+            </div>
             {replyFormError && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{replyFormError}</p>}
             <div className="flex items-center justify-between mt-3">
               <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
@@ -784,8 +917,32 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-3 mb-2">
                   <span className="font-medium text-slate-700 dark:text-slate-200">{reply.authorLabel}</span>
                   <span>{formatTimestamp(reply.created_at)}</span>
+                  {canMessage(reply) && (
+                    <button onClick={() => onOpenMessages(reply.user_id)} className="flex items-center gap-1 text-blue-700 dark:text-blue-400 hover:underline">
+                      <Mail className="w-3 h-3" /> Message
+                    </button>
+                  )}
                 </div>
-                <p className="text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap mb-2">{reply.content}</p>
+                {editingReplyId === reply.id ? (
+                  <div className="mb-2 space-y-2">
+                    <textarea
+                      value={editReplyText}
+                      onChange={(e) => setEditReplyText(e.target.value)}
+                      rows="3"
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm resize-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => saveReplyEdit(reply)} className="bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-800">Save</button>
+                      <button onClick={resetEditing} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-2">
+                    <p className="text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap">{reply.content}</p>
+                    <AttachmentList files={attachments.byReply[reply.id]} />
+                  </div>
+                )}
                 <div className="flex items-center gap-4">
                   <button onClick={() => toggleReplyLike(reply.id)} className={`flex items-center gap-1.5 text-xs ${reply.likedByMe ? 'text-blue-700 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-blue-700 dark:hover:text-blue-400'}`}>
                     <ThumbsUp className="w-3.5 h-3.5" /> {reply.likeCount}
@@ -794,9 +951,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                     <Flag className="w-3.5 h-3.5" /> Report
                   </button>
                   {currentUser && reply.user_id === currentUser.id && (
-                    <button onClick={() => requestDeleteReply(reply)} className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 text-xs ml-auto">
-                      Delete
-                    </button>
+                    <div className="flex items-center gap-4 ml-auto">
+                      {!currentUser.is_muted && editingReplyId !== reply.id && (
+                        <button onClick={() => { resetEditing(); setEditingReplyId(reply.id); setEditReplyText(reply.content); }} className="flex items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-blue-700 dark:hover:text-blue-400 text-xs">
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                      )}
+                      <button onClick={() => requestDeleteReply(reply)} className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 text-xs">
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -880,10 +1044,14 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   </label>
                 ) : (
                   <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Attachments require an account
+                    <Lock className="w-3 h-3" /> Attaching photos & PDFs requires a free account
                   </span>
                 )}
               </div>
+
+              {currentUser && (
+                <FilePicker files={newThreadFiles} onChange={setNewThreadFiles} disabled={submittingThread || currentUser.is_muted} />
+              )}
 
               {threadFormError && <p className="text-xs text-red-500 dark:text-red-400">{threadFormError}</p>}
 
@@ -906,7 +1074,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="bg-gradient-to-r from-blue-700 to-blue-600 dark:from-blue-800 dark:to-blue-900 rounded-xl p-5 mb-5 text-white relative overflow-hidden">
           <Leaf className="w-24 h-24 absolute -right-4 -bottom-6 text-emerald-400/20 rotate-12" />
           <h2 className="text-lg font-bold mb-1 relative">Welcome to the neighborhood</h2>
-          <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. Create a free account for notifications, file sharing, and direct messages.</p>
+          <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. A free account lets you reply, attach photos & PDFs, message neighbors privately, and edit your own posts.</p>
         </div>
 
         <div className="relative mb-4">
@@ -960,10 +1128,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 </span>
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-2.5 mb-1.5">{thread.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">{thread.content}</p>
+                {thread.attachments.some((f) => f.file_type === 'image') && (
+                  <div className="flex gap-2 mb-3">
+                    {thread.attachments.filter((f) => f.file_type === 'image').slice(0, 3).map((f) => (
+                      <img key={f.id} src={f.file_url} alt={f.file_name} loading="lazy" className="w-16 h-16 object-cover rounded-lg border border-slate-200 dark:border-slate-600" />
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-4">
                   <span className="font-medium text-slate-600 dark:text-slate-300">{thread.authorLabel}</span>
                   <span>{formatTimestamp(thread.created_at)}</span>
                   <span className="flex items-center gap-1 ml-auto"><ThumbsUp className="w-3.5 h-3.5" /> {thread.likeCount}</span>
+                  {thread.attachments.length > 0 && <span className="flex items-center gap-1"><Paperclip className="w-3.5 h-3.5" /> {thread.attachments.length}</span>}
                   <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> {thread.replyCount}</span>
                 </div>
               </div>

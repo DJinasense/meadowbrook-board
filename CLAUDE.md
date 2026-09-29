@@ -145,6 +145,27 @@ anonymously, so mute only stops the named account. Deleting a member keeps
 their posts (user_id SET NULL → shows "Anonymous"). `useCurrentUser` selects
 `is_muted`, so that column must exist before any deploy of the client.
 
+**Member features (2026-09-29):** `supabase_member_features.sql` (run on live,
+verified with 24 scripted permission checks + UI walkthrough) adds:
+- Private messages (`components/Messages.jsx`, `App` view `messages`): insert
+  must be from self, not to self, not muted; recipients can only flip `read`;
+  no admin read policy by design (admins can't read DMs).
+- Attachments (`lib/attachments.js`, `components/Attachments.jsx`): photos/PDFs,
+  10 MB, max 5 per post, bucket `community-files` is public. Files upload to
+  `<uid>/<threadOrReplyId>/...`; `files.uploaded_by` defaults to auth.uid() and
+  isn't grantable; a file row can only attach to the uploader's own thread/reply.
+  KNOWN GAP: an older, looser INSERT policy on storage.objects (predates this
+  work, name unknown) still lets a member upload into another member's folder.
+  Overwrite/delete of others' files IS blocked and stray uploads can't be
+  attached to anyone's post. Find it with `select policyname, cmd, with_check
+  from pg_policies where schemaname='storage' and tablename='objects';`.
+- Editing own threads/replies (no "edited" label, per user); muted members
+  can't edit. threads/replies UPDATE is column-granted — admins still need
+  `status` in that grant for Remove/Restore.
+- Replies are members-only (guests see a sign-up prompt; RLS enforces it).
+- Notifications are NOT implemented (the notify_* columns exist but nothing
+  sends email) — don't advertise them in copy.
+
 `supabase_open_signup.sql` is a second, separate file (added when invite
 codes were parked, see Signup section below) — unlike `supabase_additions.sql`
 it has **not** been run against the live project yet; the user still needs

@@ -108,7 +108,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </button>
 
             <p className="text-xs text-gray-400 dark:text-slate-500 text-center mt-6">
-              Accounts unlock notifications & direct messaging.
+              A free account lets you reply, attach photos & PDFs,<br/>message neighbors privately, and edit your own posts.
             </p>
 
             <button
@@ -198,7 +198,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">You're in!</h2>
             <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">
               Welcome to the board.<br/>
-              Notifications and direct messaging are unlocked.
+              You can now reply, attach photos & PDFs,<br/>and message other members privately.
             </p>
             <button
               onClick={() => { if (onVerified) onVerified(); }}
