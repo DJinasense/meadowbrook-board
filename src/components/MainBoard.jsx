@@ -237,25 +237,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   async function handleReply() {
-    if (currentUser?.is_muted) { setReplyFormError(MUTED_NOTICE); return; }
+    if (!currentUser) { setShowSignupPrompt(true); return; }
+    if (currentUser.is_muted) { setReplyFormError(MUTED_NOTICE); return; }
     if (!newReply.content) { setReplyFormError('Please enter a reply'); return; }
     setSubmittingReply(true);
     setReplyFormError(null);
 
-    const payload = currentUser
-      ? {
-          thread_id: selectedThreadId,
-          user_id: currentUser.id,
-          content: newReply.content,
-          is_anonymous: newReply.isAnonymous,
-        }
-      : {
-          thread_id: selectedThreadId,
-          user_id: null,
-          guest_name: guestName.trim() || 'Anonymous',
-          content: newReply.content,
-          is_anonymous: true,
-        };
+    const payload = {
+      thread_id: selectedThreadId,
+      user_id: currentUser.id,
+      content: newReply.content,
+      is_anonymous: newReply.isAnonymous,
+    };
 
     const { error } = await supabase.from('replies').insert(payload);
     setSubmittingReply(false);
@@ -745,19 +738,24 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-sm">Add a Reply</h3>
-            {currentUser?.is_muted && (
+            {!currentUser ? (
+              <div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Replying is for members. Creating a free account takes about a minute.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => { if (onRequestSignup) onRequestSignup(); }} className="bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-800">
+                    Create a free account
+                  </button>
+                  <button onClick={() => { if (onRequestLogin) onRequestLogin(); }} className="px-4 py-2.5 rounded-lg text-sm font-semibold text-blue-700 dark:text-blue-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700">
+                    Log in
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+            {currentUser.is_muted && (
               <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-4">
                 {MUTED_NOTICE}
               </p>
-            )}
-            {!currentUser && (
-              <input
-                type="text"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="Display name (optional — leave blank to stay Anonymous)"
-                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm mb-3 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
             )}
             <textarea
               value={newReply.content}
@@ -768,16 +766,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             />
             {replyFormError && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{replyFormError}</p>}
             <div className="flex items-center justify-between mt-3">
-              {currentUser ? (
-                <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
-                  <input type="checkbox" checked={newReply.isAnonymous} onChange={(e) => setNewReply({ ...newReply, isAnonymous: e.target.checked })} className="mr-2" />
-                  Reply anonymously
-                </label>
-              ) : <span className="text-xs text-slate-400 dark:text-slate-500">Posting as guest</span>}
-              <button onClick={handleReply} disabled={submittingReply || currentUser?.is_muted} className="flex items-center gap-1.5 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50">
+              <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
+                <input type="checkbox" checked={newReply.isAnonymous} onChange={(e) => setNewReply({ ...newReply, isAnonymous: e.target.checked })} className="mr-2" />
+                Reply anonymously
+              </label>
+              <button onClick={handleReply} disabled={submittingReply || currentUser.is_muted} className="flex items-center gap-1.5 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-50">
                 <Send className="w-3.5 h-3.5" /> {submittingReply ? 'Sending...' : 'Reply'}
               </button>
             </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-3">
