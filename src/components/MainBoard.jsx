@@ -17,8 +17,8 @@ function PageBG({ children }) {
   );
 }
 
-// Opens the site owner's PayPal business page (paypal.biz redirects to paypal.com).
-const DONATE_URL = 'https://www.paypal.biz/DGRVIPLLC';
+// PayPal hosted donate button (donation page set up in the owner's PayPal account).
+const DONATE_URL = 'https://www.paypal.com/donate/?hosted_button_id=62QBNJL452VKE';
 
 const MUTED_NOTICE = 'An admin has paused posting on your account. You can still read the board.';
 
@@ -635,7 +635,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       target="_blank"
       rel="noopener noreferrer"
       title="Support the board with a donation (opens PayPal)"
-      className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-full px-2.5 py-1 mr-1 shrink-0"
+      className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-full px-2.5 py-1 shrink-0"
     >
       <Heart className="w-3.5 h-3.5" /> Donate
     </a>
@@ -643,8 +643,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const TopBar = () => (
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-blue-100 dark:border-slate-700 sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <button onClick={() => setCurrentView('landing')} className="flex items-center gap-2.5">
+      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        {DonateLink()}
+        <button onClick={() => setCurrentView('landing')} className="flex items-center gap-2.5 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex items-center justify-center p-1.5 shrink-0 transition-transform group-hover:scale-105">
             <img src="/logo-icon.png" alt="MeadowBrook Logo" className="w-full h-full object-contain dark:hidden" />
             <img src="/logo-icon-white.png" alt="MeadowBrook Logo" className="w-full h-full object-contain hidden dark:block" />
@@ -656,7 +657,6 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </button>
 
         <div className="flex items-center gap-1.5 relative">
-          {DonateLink()}
           {currentUser ? (
             <>
               <button
@@ -746,9 +746,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     return (
       <PageBG>
         {Overlays()}
+        <div className="absolute top-4 left-4 z-10">{DonateLink()}</div>
         {onToggleTheme && (
           <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5">
-            {DonateLink()}
             {ThemeToggle()}
           </div>
         )}
