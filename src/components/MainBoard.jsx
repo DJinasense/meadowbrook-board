@@ -743,23 +743,23 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">A neighbor-sponsored community board — long overdue.</p>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">A neighbor-run community board — finally here.</p>
 
             <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6 mb-6 text-left">
               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                A place to share insights, ideas, and concerns locally among fellow unit owners.
-                Anyone can read the board and start a thread, no account required.
+                A place to swap ideas, ask questions, and raise concerns with the people who live here.
+                Anyone can read the board and start a thread — no account required.
               </p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">A verified member account allows users to:</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">With a verified member account, you can:</p>
               <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
                 <li className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Reply to posts and join the conversation</li>
-                <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Attach photos and PDFs — notices, letters, pictures of issues</li>
+                <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Attach photos and PDFs — notices, letters, or a photo of that leaky pipe</li>
                 <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Send private messages to other members</li>
                 <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Edit or delete your own posts</li>
                 <li className="flex gap-2"><ThumbsUp className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Like posts you agree with</li>
               </ul>
               <p className="text-sm text-slate-400 dark:text-slate-500 mt-3 italic">
-                Fueled by transparency and honesty.
+                Your building. Your voice.
               </p>
             </div>
 
@@ -767,7 +767,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               onClick={() => setCurrentView('board')}
               className="w-full bg-blue-700 text-white py-3.5 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-md shadow-blue-100 dark:shadow-none mb-3"
             >
-              Enter the Board
+              Browse the Board
             </button>
 
             <div className="flex items-center justify-center gap-4">
