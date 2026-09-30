@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -16,6 +16,9 @@ function PageBG({ children }) {
     </div>
   );
 }
+
+// Opens the site owner's PayPal business page (paypal.biz redirects to paypal.com).
+const DONATE_URL = 'https://www.paypal.biz/DGRVIPLLC';
 
 const MUTED_NOTICE = 'An admin has paused posting on your account. You can still read the board.';
 
@@ -626,6 +629,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     </>
   );
 
+  const DonateLink = () => (
+    <a
+      href={DONATE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Support the board with a donation (opens PayPal)"
+      className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-full px-2.5 py-1 mr-1 shrink-0"
+    >
+      <Heart className="w-3.5 h-3.5" /> Donate
+    </a>
+  );
+
   const TopBar = () => (
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-blue-100 dark:border-slate-700 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -641,6 +656,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </button>
 
         <div className="flex items-center gap-1.5 relative">
+          {DonateLink()}
           {currentUser ? (
             <>
               <button
@@ -731,7 +747,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       <PageBG>
         {Overlays()}
         {onToggleTheme && (
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5">
+            {DonateLink()}
             {ThemeToggle()}
           </div>
         )}
