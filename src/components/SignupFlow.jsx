@@ -108,7 +108,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </button>
 
             <p className="text-xs text-gray-400 dark:text-slate-500 text-center mt-6">
-              A free account lets you reply, attach photos & PDFs,<br/>message neighbors privately, and edit your own posts.
+              A member account lets you reply, attach photos & PDFs,<br/>message neighbors privately, and edit your own posts.
             </p>
 
             <button

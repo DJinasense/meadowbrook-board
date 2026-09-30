@@ -489,7 +489,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </div>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">This one needs an account</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
-          A free account lets you reply to posts, like posts, attach photos and PDFs, send private messages to neighbors, and edit or delete your own posts.
+          A member account lets you reply to posts, like posts, attach photos and PDFs, send private messages to neighbors, and edit or delete your own posts.
         </p>
         <button
           onClick={() => { setShowSignupPrompt(false); if (onRequestSignup) onRequestSignup(); }}
@@ -750,7 +750,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 A place to share insights, ideas, and concerns locally among fellow unit owners.
                 Anyone can read the board and start a thread, no account required.
               </p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">A free member account also lets you:</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">A verified member account allows users to:</p>
               <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
                 <li className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Reply to posts and join the conversation</li>
                 <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Attach photos and PDFs — notices, letters, pictures of issues</li>
@@ -870,10 +870,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3 text-sm">Add a Reply</h3>
             {!currentUser ? (
               <div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Replying is for members. Creating a free account takes about a minute.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Replying is for members. Creating an account takes about a minute.</p>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => { if (onRequestSignup) onRequestSignup(); }} className="bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-800">
-                    Create a free account
+                    Create an account
                   </button>
                   <button onClick={() => { if (onRequestLogin) onRequestLogin(); }} className="px-4 py-2.5 rounded-lg text-sm font-semibold text-blue-700 dark:text-blue-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700">
                     Log in
@@ -1044,7 +1044,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   </label>
                 ) : (
                   <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Attaching photos & PDFs requires a free account
+                    <Lock className="w-3 h-3" /> Attaching photos & PDFs requires a member account
                   </span>
                 )}
               </div>
@@ -1074,7 +1074,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="bg-gradient-to-r from-blue-700 to-blue-600 dark:from-blue-800 dark:to-blue-900 rounded-xl p-5 mb-5 text-white relative overflow-hidden">
           <Leaf className="w-24 h-24 absolute -right-4 -bottom-6 text-emerald-400/20 rotate-12" />
           <h2 className="text-lg font-bold mb-1 relative">Welcome to the neighborhood</h2>
-          <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. A free account lets you reply, attach photos & PDFs, message neighbors privately, and edit your own posts.</p>
+          <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. A member account lets you reply, attach photos & PDFs, message neighbors privately, and edit your own posts.</p>
         </div>
 
         <div className="relative mb-4">
