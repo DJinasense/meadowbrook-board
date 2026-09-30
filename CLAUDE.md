@@ -154,11 +154,9 @@ verified with 24 scripted permission checks + UI walkthrough) adds:
   10 MB, max 5 per post, bucket `community-files` is public. Files upload to
   `<uid>/<threadOrReplyId>/...`; `files.uploaded_by` defaults to auth.uid() and
   isn't grantable; a file row can only attach to the uploader's own thread/reply.
-  KNOWN GAP: an older, looser INSERT policy on storage.objects (predates this
-  work, name unknown) still lets a member upload into another member's folder.
-  Overwrite/delete of others' files IS blocked and stray uploads can't be
-  attached to anyone's post. Find it with `select policyname, cmd, with_check
-  from pg_policies where schemaname='storage' and tablename='objects';`.
+  Storage INSERT is limited to the uploader's own folder (the old loose
+  policy "Only signed-up users can upload" was dropped; verified 2026-09-29
+  that uploading into another folder is refused).
 - Editing own threads/replies (no "edited" label, per user); muted members
   can't edit. threads/replies UPDATE is column-granted — admins still need
   `status` in that grant for Remove/Restore.
@@ -223,8 +221,8 @@ invite-code data as something to protect. `public/print-invite-codes.html`
 was deleted. `supabase_remove_invite_codes.sql` drops `invite_codes`,
 `invite_code_redemptions`, `check_invite_code()` and `redeem_invite_code()`.
 It also recreates `admin_delete_member` without its old
-`invite_code_redemptions` cleanup line. The user runs it in the SQL Editor;
-until they confirm they have, the tables may still exist. Where older sections
+`invite_code_redemptions` cleanup line. It has been run on live (verified
+2026-09-29: tables/functions return 404, admin Delete still works). Where older sections
 of this file mention the "56 real codes", treat that as history, not current
 guidance.
 
