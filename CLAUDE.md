@@ -170,10 +170,22 @@ it has **not** been run against the live project yet; the user still needs
 to paste it into the SQL Editor themselves.
 
 **Supabase Auth settings that must stay configured**:
-- "Confirm email" is turned OFF (Authentication → Sign In / Providers →
-  Email) — required for `SignupFlow.jsx` to work at all: it expects a live
-  session back from `auth.signUp()` immediately, with no email-click step in
-  between.
+- "Confirm email" (Authentication → Sign In / Providers → Email): the user
+  chose on 2026-09-29 to turn it ON, with a gentle flow for low-tech
+  residents. The app handles both settings. With it off, signUp returns a
+  session and the profile is created immediately. With it on, SignupFlow
+  shows a "Check your email" step (resend button, spam hint); LoginFlow
+  explains `email_not_confirmed` and offers a resend. The emailed link lands
+  on App's `welcome` view (`#type=signup` in the URL). An expired link
+  (`#error_code=`) lands on login with a notice.
+  `supabase_email_confirmation.sql` adds trigger `on_auth_user_confirmed`,
+  which creates the `users` row when `email_confirmed_at` is set, deduping
+  the display name with digits. Unconfirmed signups get no profile row.
+  Before turning it on, the user needs: (1) that SQL run, (2) custom SMTP. I
+  believe Supabase's built-in email only delivers to project team members, at
+  about 2 per hour, but that is unverified. If so, it would also break
+  password resets for residents. (3) Site URL / Redirect URLs set to
+  https://mbb7.dgrvip.net. Check with the user which of these are done.
 - Redirect URLs allowlist must include every real domain the app is served
   from (see deployment section above).
 
