@@ -26,20 +26,24 @@ account. This is deliberate, "for now" — see the Signup section below.
   The single shared client is `src/lib/supabaseClient.js`.
 - **Icons for lucide-react**, no other UI library.
 - **GitHub**: `github.com/DJinasense/meadowbrook-board`, branch `main`.
-- **Vercel**: live at `https://mbb7.dgrvip.net` (auto-deploys on push to `main`). The old `meadowbrook-board.vercel.app` alias returns DEPLOYMENT_NOT_FOUND as of 2026-09-29 — don't use it to check deploys. Vite build preset,
+- **Vercel**: live at `https://mbb7.us` (auto-deploys on push to `main`). The old `meadowbrook-board.vercel.app` alias returns DEPLOYMENT_NOT_FOUND as of 2026-09-29 — don't use it to check deploys. Vite build preset,
   env vars set in Vercel project settings (must match `.env.local` exactly —
   we already hit a bug once where the key got truncated to `ITE_SUPABASE_URL`
   in Vercel's UI; double-check the full var name if anything breaks there).
-- **Domain**: `mbb7.dgrvip.net` (a subdomain of a domain the user already
-  owns) — this is now the app's real domain, referenced in `index.html`
-  (canonical/OG tags). **DNS/Vercel/Supabase wiring not verified by a Claude
-  Code session** — a Claude Code session has no access to the Vercel or
-  Supabase dashboards, so before assuming the domain is actually live, the
-  user needs to confirm: (1) CNAME record `mbb7` → `cname.vercel-dns.com`,
-  (2) the domain added under Vercel → Project → Domains, (3)
-  `https://mbb7.dgrvip.net` added to Supabase → Authentication → URL
-  Configuration → Redirect URLs (see note below — auth silently breaks on
-  any domain not in that list).
+- **Domain**: `mbb7.us`, bought at GoDaddy (2026-09-30). The registration
+  contact is the user's real estate office, public in WHOIS by the user's
+  choice (`.us` allows no privacy service). DNS stays at GoDaddy: A `@` ->
+  `216.198.79.1` (Vercel's record; GoDaddy's "Parked" A records had to be
+  removed) and CNAME `www` -> `cname.vercel-dns.com`. Verified 2026-09-30:
+  `https://mbb7.us` serves the board over HTTPS and http redirects to https.
+  `https://www.mbb7.us` had a certificate error (curl exit 60) at that time,
+  not checked again since; the user may need to add `www.mbb7.us` under
+  Vercel -> Domains. The old `mbb7.dgrvip.net` now returns
+  DEPLOYMENT_NOT_FOUND, so it was removed from Vercel and old links are dead.
+  `index.html` canonical/OG tags use `https://mbb7.us`. A Claude Code session
+  has no access to the Vercel, GoDaddy or Supabase dashboards; whether
+  `https://mbb7.us` is in Supabase -> Authentication -> URL Configuration
+  (Site URL and Redirect URLs) is something the user must confirm.
 - **Important**: whichever domain(s) actually serve the app (`.vercel.app`
   and/or the custom domain) must be added to Supabase → Authentication →
   URL Configuration → Redirect URLs, or login/signup/password-reset will
@@ -185,7 +189,12 @@ to paste it into the SQL Editor themselves.
   believe Supabase's built-in email only delivers to project team members, at
   about 2 per hour, but that is unverified. If so, it would also break
   password resets for residents. (3) Site URL / Redirect URLs set to
-  https://mbb7.dgrvip.net. Check with the user which of these are done.
+  https://mbb7.us. Check with the user which of these are done. Plan
+  agreed 2026-09-30 for (2): Resend SMTP (`smtp.resend.com`, port 465, user
+  `resend`, password = the Resend API key) sending as `noreply@dgrvip.net`,
+  since `dgrvip.net` is already verified in Resend. The user enters the key in
+  Supabase themselves; `C:/Users/DGR/.secrets/resend.env` holds a
+  send-only key (it can't list or add domains). Not confirmed as done.
 - Redirect URLs allowlist must include every real domain the app is served
   from (see deployment section above).
 
