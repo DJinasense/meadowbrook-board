@@ -215,12 +215,23 @@ open. What changed and what didn't:
   (e.g. "New here? Enter your invite code" → "New here? Create an account").
   `AdminDashboard.jsx` copy was left as-is (admin-only, lower priority).
 
+## Invite codes — retired (2026-09-29)
+
+The user has dropped invite codes entirely ("we got rid of the codes"). Signup
+is open email + password. Don't reinstate code-gated signup or treat the
+invite-code data as something to protect. `public/print-invite-codes.html`
+was deleted. `supabase_remove_invite_codes.sql` drops `invite_codes`,
+`invite_code_redemptions`, `check_invite_code()` and `redeem_invite_code()`.
+It also recreates `admin_delete_member` without its old
+`invite_code_redemptions` cleanup line. The user runs it in the SQL Editor;
+until they confirm they have, the tables may still exist. Where older sections
+of this file mention the "56 real codes", treat that as history, not current
+guidance.
+
 ## Real accounts that exist (not test data — do not delete)
 
 - `dgromensky@gmail.com`, Apt 205, `is_admin = true` — the site owner's real
   admin account.
-- The 56 real invite codes for Apt 101–708 (all unredeemed as of last
-  check — verify before assuming that's still true).
 
 All other accounts/codes created during development (various
 `+meadowbrooktest*` addresses, `MB7-TEST-*` codes) were cleaned up after
