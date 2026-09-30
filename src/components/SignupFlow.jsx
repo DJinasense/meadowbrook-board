@@ -1,13 +1,35 @@
-import React, { useState } from 'react';
-import { Mail, User, Lock, CheckCircle, XCircle, Sun, Moon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Mail, User, Lock, CheckCircle, XCircle, Sun, Moon, MailCheck, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { ensureProfile } from '../lib/ensureProfile';
+import { CONFIRM_REDIRECT, friendlyResendError } from '../lib/authEmail';
 
-export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLogin, theme, onToggleTheme }) {
-  const [step, setStep] = useState('landing'); // landing | signup | success
+export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLogin, theme, onToggleTheme, initialStep = 'landing' }) {
+  const [step, setStep] = useState(initialStep); // landing | signup | check-email | success
   const [form, setForm] = useState({ email: '', username: '', password: '' });
   const [submitting, setSubmitting] = useState(false);
   const [signupError, setSignupError] = useState(null);
+  const [resendState, setResendState] = useState(null); // null | 'sending' | 'sent' | error message
+
+  // If they confirm in another tab of this browser, supabase-js shares the new
+  // session here too, so move this tab on instead of leaving it waiting.
+  useEffect(() => {
+    if (step !== 'check-email') return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setStep('success');
+    });
+    return () => subscription.unsubscribe();
+  }, [step]);
+
+  const handleResend = async () => {
+    setResendState('sending');
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: form.email.trim(),
+      options: { emailRedirectTo: CONFIRM_REDIRECT },
+    });
+    setResendState(error ? friendlyResendError(error) : 'sent');
+  };
 
   const handleCreateAccount = async () => {
     if (!form.email || !form.username || !form.password) {
@@ -21,10 +43,18 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
     const email = form.email.trim();
     const username = form.username.trim();
 
+    // Catch a taken display name now, before they go off to their inbox.
+    const { data: nameTaken } = await supabase.from('member_directory').select('id').eq('username', username).limit(1);
+    if (nameTaken?.length) {
+      setSignupError('That display name is already taken — please choose another.');
+      setSubmitting(false);
+      return;
+    }
+
     let { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password: form.password,
-      options: { data: { username } },
+      options: { data: { username }, emailRedirectTo: CONFIRM_REDIRECT },
     });
 
     // Email already has a login (e.g. an earlier signup that didn't finish).
@@ -47,11 +77,18 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
       return;
     }
 
+    // "Confirm email" is on: the account waits until they tap the emailed
+    // link, and the database creates their profile at that moment
+    // (supabase_email_confirmation.sql). An empty identities list means the
+    // email already belongs to a confirmed account.
     if (!authData.session) {
-      setSignupError(
-        'Account created, but no active session was returned. In Supabase, go to Authentication → Sign In / Providers → Email, and turn off "Confirm email".'
-      );
       setSubmitting(false);
+      if (authData.user?.identities?.length === 0) {
+        setSignupError('An account with this email already exists. Please log in instead, or use "Forgot password?" on the login screen.');
+        return;
+      }
+      setResendState(null);
+      setStep('check-email');
       return;
     }
 
@@ -189,6 +226,59 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
           </form>
         )}
 
+        {/* CHECK EMAIL: waiting for them to tap the confirmation link */}
+        {step === 'check-email' && (
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 dark:bg-emerald-900/40 rounded-full mb-5">
+              <MailCheck className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-3">Check your email</h2>
+            <p className="text-base text-gray-600 dark:text-slate-300 mb-1">We sent a confirmation link to</p>
+            <p className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-5 break-words">{form.email.trim()}</p>
+
+            <ol className="text-left text-base text-gray-700 dark:text-slate-200 space-y-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-5">
+              <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">1.</span> Open your email.</li>
+              <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">2.</span> Find the message from MeadowBrook Board.</li>
+              <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">3.</span> <span>Tap <strong>Confirm my email</strong>. You'll be logged in automatically.</span></li>
+            </ol>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">
+              Don't see it after a few minutes? Check your <strong>Spam</strong> or <strong>Junk</strong> folder.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resendState === 'sending'}
+              className="w-full flex items-center justify-center gap-2 border-2 border-blue-700 dark:border-blue-400 text-blue-700 dark:text-blue-300 py-4 rounded-xl text-base font-semibold hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className="w-5 h-5" />
+              {resendState === 'sending' ? 'Sending…' : 'Send the email again'}
+            </button>
+            {resendState === 'sent' && (
+              <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-3">Sent! Check your inbox again.</p>
+            )}
+            {resendState && resendState !== 'sending' && resendState !== 'sent' && (
+              <p className="text-sm text-red-500 dark:text-red-400 mt-3">{resendState}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => { setSignupError(null); setStep('signup'); }}
+              className="w-full text-gray-500 dark:text-slate-400 text-base py-3 mt-3 hover:text-gray-700 dark:hover:text-slate-200"
+            >
+              Wrong email? Go back and fix it
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (onSwitchToLogin) onSwitchToLogin(); }}
+              className="w-full text-blue-700 dark:text-blue-400 text-base py-3 hover:text-blue-800 dark:hover:text-blue-300"
+            >
+              Already confirmed? Log in
+            </button>
+          </div>
+        )}
+
         {/* SUCCESS */}
         {step === 'success' && (
           <div className="text-center">
@@ -197,7 +287,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </div>
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">You're in!</h2>
             <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">
-              Welcome to the board.<br/>
+              {initialStep === 'success' ? 'Your email is confirmed. ' : ''}Welcome to the board.<br/>
               You can now reply, attach photos & PDFs,<br/>and message other members privately.
             </p>
             <button

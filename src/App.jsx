@@ -8,8 +8,21 @@ import MainBoard from './components/MainBoard';
 import AdminDashboard from './components/AdminDashboard';
 import Messages from './components/Messages';
 
+// Read the URL before supabase-js clears it. A confirmation email link lands
+// here with "#...type=signup" (supabase-js signs them in from the same hash);
+// an expired or already-used link lands with "#error_code=...".
+const landingHash = new URLSearchParams(window.location.hash.slice(1));
+const INITIAL_VIEW =
+  landingHash.get('type') === 'signup' ? 'welcome'
+  : landingHash.get('error_code') ? 'login'
+  : 'board';
+const LINK_ERROR_NOTICE = landingHash.get('error_code')
+  ? "That email link has expired or was already used. Log in below. If your email still needs confirming, we'll offer to send a fresh link."
+  : null;
+if (LINK_ERROR_NOTICE) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
 function App() {
-  const [view, setView] = useState('board'); // 'board' | 'signup' | 'login' | 'reset-password' | 'admin' | 'messages'
+  const [view, setView] = useState(INITIAL_VIEW); // 'board' | 'welcome' | 'signup' | 'login' | 'reset-password' | 'admin' | 'messages'
   const [messageTarget, setMessageTarget] = useState(null);
   const { theme, toggleTheme } = useTheme();
 
@@ -25,6 +38,10 @@ function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  if (view === 'welcome') {
+    return <SignupFlow initialStep="success" onVerified={() => setView('board')} theme={theme} onToggleTheme={toggleTheme} />;
+  }
 
   if (view === 'signup') {
     return (
@@ -44,6 +61,7 @@ function App() {
         onLoggedIn={() => setView('board')}
         onBack={() => setView('board')}
         onSwitchToSignup={() => setView('signup')}
+        notice={LINK_ERROR_NOTICE}
         theme={theme}
         onToggleTheme={toggleTheme}
       />

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Mail, Lock, XCircle, UserPlus, Sun, Moon } from 'lucide-react';
+import { Mail, Lock, XCircle, UserPlus, Sun, Moon, MailWarning, Info } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { CONFIRM_REDIRECT, friendlyResendError } from '../lib/authEmail';
 
-export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme, onToggleTheme }) {
+// notice: shown above the form, e.g. when an expired email link sent them here.
+export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme, onToggleTheme, notice }) {
   const [step, setStep] = useState('login'); // login | forgot | forgot-sent
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [resendState, setResendState] = useState(null); // null | 'sending' | 'sent' | error message
 
   async function handleLogin() {
     if (!email || !password) {
@@ -17,10 +21,19 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
 
     setSubmitting(true);
     setError(null);
+    setNeedsConfirm(false);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
     setSubmitting(false);
+
+    // Supabase only says this when the password was right, so it doesn't
+    // reveal anything about accounts the person doesn't control.
+    if (signInError?.code === 'email_not_confirmed' || /not confirmed/i.test(signInError?.message || '')) {
+      setNeedsConfirm(true);
+      setResendState(null);
+      return;
+    }
 
     if (signInError) {
       // Deliberately generic: Supabase itself does not distinguish "wrong password"
@@ -30,6 +43,16 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
     }
 
     if (onLoggedIn) onLoggedIn();
+  }
+
+  async function handleResendConfirmation() {
+    setResendState('sending');
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo: CONFIRM_REDIRECT },
+    });
+    setResendState(resendError ? friendlyResendError(resendError) : 'sent');
   }
 
   async function handleForgotPassword() {
@@ -80,6 +103,13 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
               <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">Log in to your account</p>
             </div>
 
+            {notice && (
+              <div className="flex items-start gap-2 bg-blue-50 dark:bg-slate-900/60 border border-blue-200 dark:border-slate-600 text-blue-900 dark:text-slate-200 text-sm rounded-lg p-3 mb-5">
+                <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{notice}</span>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
@@ -110,6 +140,29 @@ export default function LoginFlow({ onLoggedIn, onBack, onSwitchToSignup, theme,
               <div className="flex items-start gap-2 text-red-500 dark:text-red-400 text-sm mt-4">
                 <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {needsConfirm && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mt-4 text-left">
+                <p className="flex items-start gap-2 text-base font-semibold text-amber-900 dark:text-amber-200">
+                  <MailWarning className="w-5 h-5 mt-0.5 shrink-0" /> Please confirm your email first
+                </p>
+                <p className="text-sm text-amber-900/80 dark:text-amber-100/80 mt-2">
+                  We emailed a confirmation link to <strong className="break-words">{email.trim()}</strong>. Tap the link in that email and you'll be logged in. Check your Spam or Junk folder if you can't find it.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  disabled={resendState === 'sending'}
+                  className="w-full mt-3 border-2 border-amber-700 dark:border-amber-400 text-amber-800 dark:text-amber-200 py-3 rounded-lg text-base font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-50"
+                >
+                  {resendState === 'sending' ? 'Sending…' : 'Send the email again'}
+                </button>
+                {resendState === 'sent' && <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-2">Sent! Check your inbox.</p>}
+                {resendState && resendState !== 'sending' && resendState !== 'sent' && (
+                  <p className="text-sm text-red-500 dark:text-red-400 mt-2">{resendState}</p>
+                )}
               </div>
             )}
 
