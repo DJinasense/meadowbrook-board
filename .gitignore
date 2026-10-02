@@ -20,6 +20,9 @@ dist-ssr
 # tool cache (graphify)
 graphify-out/
 
+# pdf.js runtime assets, copied out of node_modules by vite.config.js
+public/pdfjs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

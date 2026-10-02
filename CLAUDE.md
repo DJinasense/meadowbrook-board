@@ -96,6 +96,68 @@ account. This is deliberate, "for now" — see the Signup section below.
 - `directory.js` — `fetchDirectory(ids)`, reads the `member_directory` view
   (safe public username/apartment lookup, doesn't expose email or bypass
   RLS on `users`).
+- `router.js` — see the Routing section below.
+- `pdfRender.js` — lazy access to pdf.js. `loadPdf(url)` caches documents by
+  URL; `renderPageToCanvas(pdf, page, canvas, maxWidth)` draws at
+  `devicePixelRatio` (capped at 2). pdf.js is a dynamic `import()` so it lands
+  in its own chunk and only downloads when a PDF is actually previewed.
+
+## Routing (added 2026-10-02) — read this before adding a screen
+
+Screens used to be a plain `useState` string, which meant the app had **no**
+browser history at all: the first Back press left the site. `src/lib/router.js`
+fixes that with a ~140-line `pushState`/`popstate` router. **Do not add
+react-router** — this is deliberate, and it keeps the "one string per screen"
+model the components already used.
+
+- `PATHS` maps a view name to a URL: `/`, `/board`, `/thread/<id>`, `/new`,
+  `/login`, `/signup`, `/reset-password`, `/admin`, `/messages/<id>`,
+  `/welcome`. Adding a screen means adding a line there.
+- Only `App.jsx` (which screen to render) and `MainBoard.jsx`
+  (landing/board/thread/create) read it, via `useRoute()`.
+- Which mover to use: `navigate` for a screen the resident chose to open;
+  `goBack(fallback)` when they're done with one (it **pops**, so in-app "Back"
+  links and the browser's Back button agree instead of each leaving a trail);
+  `replaceRoute` for sideways moves (login <-> signup) and one-time screens
+  reached from an email link.
+- `depth` is kept in history state so `goBack` knows whether there's anything
+  to pop or whether this was a shared-link cold start.
+- `seedRoute` sets the route **without touching the URL**, used only for the
+  auth-email landings: the hash still holds the session that supabase-js reads
+  asynchronously, so it must be left intact. Don't "clean up" the hash.
+- `useBackToClose(closeFn | null)` makes Back close the topmost open overlay
+  instead of leaving the screen under it. `MainBoard` passes a precedence
+  chain (lightbox → confirm → report → settings → signup prompt). It works via
+  a single module-level `overlayCloser`, deliberately **not** by pushing a
+  marker entry — that breaks under React StrictMode's double-invoked effects.
+- **`vercel.json` is required**: it rewrites everything to `/index.html`.
+  Without it, refreshing or sharing `/thread/<id>` 404s in production.
+- Drafts: moving around inside the app keeps `newThread`/`newReply` in state,
+  so the only real loss is leaving the site — there's a `beforeunload` warning
+  for that, plus an "unfinished post — Continue" bar on the board.
+
+## Attachment previews (added 2026-10-02)
+
+Photos **and** PDFs preview in the board list, not just inside a thread.
+`components/Attachments.jsx` owns the tiles, `components/Lightbox.jsx` the
+full-screen viewer.
+
+- `AttachmentThumbs` (board list) is a sideways-scrolling strip;
+  `AttachmentList` (open thread/reply) wraps. Both call
+  `onOpen(files, index, event)` — keep that signature if you add a third.
+- Tile sizes live in one place, `THUMB_SIZES` in `Attachments.jsx`. They're
+  portrait (~4:5) on purpose: at those widths pdf.js draws nearly the whole
+  first page, so a notice is readable in the list.
+- PDFs render to a **canvas via pdf.js, not an `<iframe>`** — Android Chrome
+  won't render a PDF in an iframe. Thumbnails are gated behind an
+  `IntersectionObserver` so a busy board doesn't fetch every document at once.
+- `downloadUrl(file)` in `lib/attachments.js` appends Supabase's
+  `?download=<name>`. That param is the only thing that produces a real
+  download; the HTML `download` attribute is ignored cross-origin.
+- `vite.config.js` has a `copy-pdfjs-assets` plugin that copies pdf.js's
+  `standard_fonts`/`wasm`/`iccs` out of `node_modules` into `public/pdfjs/`
+  at build time (gitignored, regenerated on Vercel). `cmaps` is skipped
+  deliberately — 1.5 MB, only needed for CJK PDFs.
 
 ## Database (Supabase) — additive migrations already applied
 

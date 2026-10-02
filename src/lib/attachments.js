@@ -40,6 +40,14 @@ export async function uploadAttachments(files, userId, { threadId = null, replyI
   return failed;
 }
 
+// Supabase serves public files with Content-Disposition: attachment when the
+// URL carries ?download=<name>, which is the only way to get a real download
+// (the HTML `download` attribute is ignored across origins).
+export function downloadUrl(file) {
+  const separator = file.file_url.includes('?') ? '&' : '?';
+  return `${file.file_url}${separator}download=${encodeURIComponent(file.file_name)}`;
+}
+
 export async function fetchAttachments({ threadIds = [], replyIds = [] }) {
   const byThread = {};
   const byReply = {};

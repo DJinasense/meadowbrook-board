@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { validateFiles, uploadAttachments, fetchAttachments } from '../lib/attachments';
-import { FilePicker, AttachmentList } from './Attachments';
+import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
+import { FilePicker, AttachmentList, AttachmentThumbs } from './Attachments';
+import Lightbox from './Lightbox';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -24,14 +26,18 @@ const MUTED_NOTICE = 'An admin has paused posting on your account. You can still
 
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest }
-  const [currentView, setCurrentView] = useState('landing');
+  // The current screen comes from the URL/history rather than local state, so
+  // the browser's Back button walks back through the board instead of leaving
+  // the site. See src/lib/router.js.
+  const route = useRoute();
+  const currentView = route.view; // 'landing' | 'board' | 'thread' | 'create'
+  const selectedThreadId = route.view === 'thread' ? route.id : null;
   const [initialRouteDecided, setInitialRouteDecided] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState(null);
   const [settingsError, setSettingsError] = useState(null);
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
-  const [selectedThreadId, setSelectedThreadId] = useState(null);
   const [openReplies, setOpenReplies] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +69,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [editReplyText, setEditReplyText] = useState('');
   const [editError, setEditError] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lightbox, setLightbox] = useState(null); // { files, index } while an attachment is open full size
 
   useEffect(() => {
     if (!currentUser) { setUnreadCount(0); return; }
@@ -88,13 +95,15 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   // A returning signed-in resident with a live session should land straight on
   // the board, not the guest landing screen. Only applies once, right after
   // the initial session check resolves — it must not override navigation the
-  // user does later in the session (e.g. clicking the logo to go back).
+  // user does later in the session (e.g. clicking the logo to go back), and it
+  // must not hijack a shared link that already points at a specific thread.
+  // replaceRoute, not navigate: Back shouldn't return to a screen never shown.
   useEffect(() => {
     if (!authLoading && !initialRouteDecided) {
-      if (currentUser) setCurrentView('board');
+      if (currentUser && route.view === 'landing') replaceRoute('board');
       setInitialRouteDecided(true);
     }
-  }, [authLoading, currentUser, initialRouteDecided]);
+  }, [authLoading, currentUser, initialRouteDecided, route.view]);
 
   // ---------- data loading ----------
 
@@ -216,19 +225,28 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     setEditError(null);
   }
 
-  function goToThread(thread) {
+  // Replies load off the route rather than off the click, so opening a thread,
+  // returning to it with the Back button, and following a shared /thread/<id>
+  // link all end up in the same place.
+  useEffect(() => {
     resetEditing();
     setNewReplyFiles([]);
+    setReplyFormError(null);
     setAttachments({ byThread: {}, byReply: {} });
-    setSelectedThreadId(thread.id);
-    setCurrentView('thread');
-    loadThreadDetail(thread.id);
+    if (!selectedThreadId) { setOpenReplies([]); return; }
+    setOpenReplies([]);
+    loadThreadDetail(selectedThreadId);
+    // loadThreadDetail is redeclared every render; listing it here would make
+    // this effect re-run forever. The two values it actually depends on are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedThreadId, currentUser?.id]);
+
+  function goToThread(thread) {
+    navigate('thread', thread.id);
   }
 
   function backToBoard() {
-    setCurrentView('board');
-    setSelectedThreadId(null);
-    setOpenReplies([]);
+    goBack('board');
   }
 
   // ---------- mutations ----------
@@ -273,7 +291,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     setNewThreadFiles([]);
     setNewThread({ title: '', content: '', category: 'general', isAnonymous: false });
-    setCurrentView('board');
+    goBack('board');
     loadBoard();
   }
 
@@ -469,6 +487,44 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       t.authorLabel.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+  // ---------- navigation safety ----------
+
+  // While anything is open on top of the screen, Back closes that rather than
+  // leaving the screen under it — what a phone's Back button does everywhere
+  // else. Topmost first.
+  useBackToClose(
+    lightbox ? () => setLightbox(null)
+    : confirmTarget ? () => setConfirmTarget(null)
+    : reportTarget ? () => { setReportTarget(null); setReportReason(''); }
+    : showSettings ? () => setShowSettings(false)
+    : showSignupPrompt ? () => setShowSignupPrompt(false)
+    : null
+  );
+
+  // Moving around inside the board keeps a half-written post in memory, so the
+  // only way to really lose one is leaving the site or closing the tab. Warn
+  // first when that happens.
+  const draftTitle = newThread.title.trim();
+  const draftBody = newThread.content.trim();
+  const hasUnsavedPost = !!(draftTitle || draftBody || newThreadFiles.length);
+  const hasUnsavedWork = hasUnsavedPost || !!newReply.content.trim() || newReplyFiles.length > 0;
+
+  useEffect(() => {
+    if (!hasUnsavedWork) return;
+    function warn(event) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedWork]);
+
+  function openLightbox(files, index, event) {
+    // Thumbnails sit inside the board card, which is itself clickable.
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    setLightbox({ files, index });
+  }
+
   // ---------- shared pieces ----------
 
   const ThemeToggle = () => onToggleTheme && (
@@ -625,6 +681,13 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       {ReportModal()}
       {ConfirmModal()}
       {SettingsModal()}
+      {lightbox && (
+        <Lightbox
+          files={lightbox.files}
+          startIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
+      )}
       {Toast()}
     </>
   );
@@ -644,7 +707,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const TopBar = () => (
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-blue-100 dark:border-slate-700 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <button onClick={() => setCurrentView('landing')} className="flex items-center gap-2.5">
+        <button onClick={() => navigate('landing')} className="flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex items-center justify-center p-1.5 shrink-0 transition-transform group-hover:scale-105">
             <img src="/logo-icon.png" alt="MeadowBrook Logo" className="w-full h-full object-contain dark:hidden" />
             <img src="/logo-icon-white.png" alt="MeadowBrook Logo" className="w-full h-full object-contain hidden dark:block" />
@@ -781,7 +844,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <button
-              onClick={() => setCurrentView('board')}
+              onClick={() => navigate('board')}
               className="w-full bg-blue-700 text-white py-3.5 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-md shadow-blue-100 dark:shadow-none mb-3"
             >
               Browse the Board
@@ -856,7 +919,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   )}
                 </div>
                 <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{openThread.content}</p>
-                <AttachmentList files={attachments.byThread[openThread.id]} />
+                <AttachmentList files={attachments.byThread[openThread.id]} onOpen={openLightbox} />
                 <div className="mb-4" />
               </>
             )}
@@ -957,7 +1020,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 ) : (
                   <div className="mb-2">
                     <p className="text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap">{reply.content}</p>
-                    <AttachmentList files={attachments.byReply[reply.id]} />
+                    <AttachmentList files={attachments.byReply[reply.id]} onOpen={openLightbox} />
                   </div>
                 )}
                 <div className="flex items-center gap-4">
@@ -988,6 +1051,35 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     );
   }
 
+  // A thread URL that was shared, bookmarked or refreshed: the thread list
+  // hasn't arrived yet, or that post is gone. Without this the screen would
+  // fall through to the board, which looks like the link was simply wrong.
+  if (currentView === 'thread') {
+    return (
+      <PageBG>
+        {TopBar()}
+        {Overlays()}
+        <div className="max-w-3xl mx-auto p-4">
+          <button onClick={backToBoard} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-4 text-sm">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to board
+          </button>
+          {loadingBoard ? (
+            <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-sm">Opening post...</div>
+          ) : (
+            <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6 text-center">
+              <MessageSquare className="w-10 h-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">This post isn't available.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">It may have been deleted, or the link may be out of date.</p>
+              <button onClick={() => navigate('board')} className="bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-800">
+                Go to the board
+              </button>
+            </div>
+          )}
+        </div>
+      </PageBG>
+    );
+  }
+
   if (currentView === 'create') {
     return (
       <PageBG>
@@ -995,7 +1087,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         {Overlays()}
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <button onClick={() => setCurrentView('board')} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-5 text-sm">
+            <button onClick={() => goBack('board')} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-5 text-sm">
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-5">Start a New Thread</h2>
@@ -1094,6 +1186,22 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. A member account lets you reply, attach photos & PDFs, message neighbors privately, and edit your own posts.</p>
         </div>
 
+        {/* A thread started and then left behind is still sitting in memory.
+            Say so plainly, with the way back to it, instead of letting someone
+            assume it's gone. */}
+        {hasUnsavedPost && (
+          <button
+            onClick={() => navigate('create')}
+            className="w-full flex items-center gap-2 text-left text-sm text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 mb-4 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+          >
+            <Pencil className="w-4 h-4 shrink-0" />
+            <span className="flex-1 truncate">
+              You have an unfinished post{draftTitle ? `: “${draftTitle}”` : ''}
+            </span>
+            <span className="font-semibold shrink-0">Continue</span>
+          </button>
+        )}
+
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <input
@@ -1108,7 +1216,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Browse by category</span>
           <button
-            onClick={() => setCurrentView('create')}
+            onClick={() => navigate('create')}
             className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
           >
             <Plus className="w-4 h-4" /> New Thread
@@ -1145,13 +1253,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 </span>
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-2.5 mb-1.5">{thread.title}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">{thread.content}</p>
-                {thread.attachments.some((f) => f.file_type === 'image') && (
-                  <div className="flex gap-2 mb-3">
-                    {thread.attachments.filter((f) => f.file_type === 'image').slice(0, 3).map((f) => (
-                      <img key={f.id} src={f.file_url} alt={f.file_name} loading="lazy" className="w-16 h-16 object-cover rounded-lg border border-slate-200 dark:border-slate-600" />
-                    ))}
-                  </div>
-                )}
+                {/* Photos and documents both get a preview here, so a notice
+                    can be looked at (full size, with a download) without
+                    opening the thread first. */}
+                <AttachmentThumbs files={thread.attachments} onOpen={openLightbox} />
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-4">
                   <span className="font-medium text-slate-600 dark:text-slate-300">{thread.authorLabel}</span>
                   <span>{formatTimestamp(thread.created_at)}</span>
