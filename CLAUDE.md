@@ -36,14 +36,20 @@ account. This is deliberate, "for now" — see the Signup section below.
   `216.198.79.1` (Vercel's record; GoDaddy's "Parked" A records had to be
   removed) and CNAME `www` -> `cname.vercel-dns.com`. Verified 2026-09-30:
   `https://mbb7.us` serves the board over HTTPS and http redirects to https.
-  `https://www.mbb7.us` had a certificate error (curl exit 60) at that time,
-  not checked again since; the user may need to add `www.mbb7.us` under
-  Vercel -> Domains. The old `mbb7.dgrvip.net` now returns
-  DEPLOYMENT_NOT_FOUND, so it was removed from Vercel and old links are dead.
+  Vercel domain setup (checked via API 2026-10-04): `mbb7.us` is the
+  production domain with no redirect; `www.mbb7.us` and `mbb7.dgrvip.net`
+  both 308-redirect to `mbb7.us`. Never set `mbb7.us` itself to redirect to
+  another domain (the Vercel UI allows redirecting a domain to itself, which
+  loops/takes the site down; this happened once on 2026-10-04 and the domain
+  had to be re-attached). `www.mbb7.us` still had a pending HTTPS certificate
+  when last checked.
   `index.html` canonical/OG tags use `https://mbb7.us`. A Claude Code session
   has no access to the Vercel, GoDaddy or Supabase dashboards; whether
   `https://mbb7.us` is in Supabase -> Authentication -> URL Configuration
-  (Site URL and Redirect URLs) is something the user must confirm.
+  (Site URL and Redirect URLs): verified 2026-10-04 via the Management API
+  that Site URL is `https://mbb7.us`, the allowlist includes it, and custom
+  SMTP (Resend, `noreply@dgrvip.net`) is on. The app's email redirects all use
+  `window.location.origin`, so they match the allowlist exactly.
 - **Important**: whichever domain(s) actually serve the app (`.vercel.app`
   and/or the custom domain) must be added to Supabase → Authentication →
   URL Configuration → Redirect URLs, or login/signup/password-reset will
