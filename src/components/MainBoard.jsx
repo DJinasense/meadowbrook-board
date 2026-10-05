@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart, Star } from 'lucide-react';
+import { FLAGS, FLAG_ORDER, FlagIcon } from './PostFlag';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -40,7 +41,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
   const [settingsStep, setSettingsStep] = useState('main'); // 'main' | 'suspend'
   const [suspendFeedback, setSuspendFeedback] = useState('');
-  const [urgentPending, setUrgentPending] = useState(0); // admins: urgent posts not yet reviewed
+  const [urgentPending, setUrgentPending] = useState(0); // admins: labeled posts not yet reviewed
   const [openReplies, setOpenReplies] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,7 +52,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [threads, setThreads] = useState([]);
 
   const [guestName, setGuestName] = useState('');
-  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, isUrgent: false });
+  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null });
   const [newReply, setNewReply] = useState({ content: '', isAnonymous: false });
   const [threadFormError, setThreadFormError] = useState(null);
   const [replyFormError, setReplyFormError] = useState(null);
@@ -123,7 +124,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, user_id, guest_name, title, content, category, is_anonymous, is_urgent, created_at')
+      .select('id, user_id, guest_name, title, content, category, is_anonymous, alert_type, created_at')
       .eq('status', 'visible')
       .order('created_at', { ascending: false });
 
@@ -178,14 +179,14 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     loadBoard();
   }, [loadBoard]);
 
-  // Admins get a red dot on the account menu while urgent posts await review.
+  // Admins get a red dot on the account menu while labeled posts await review.
   useEffect(() => {
     if (!currentUser?.is_admin) { setUrgentPending(0); return; }
     let active = true;
     supabase
       .from('threads')
       .select('id', { count: 'exact', head: true })
-      .eq('is_urgent', true)
+      .not('alert_type', 'is', null)
       .is('announced_at', null)
       .eq('status', 'visible')
       .then(({ count }) => { if (active) setUrgentPending(count || 0); });
@@ -286,7 +287,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           content: newThread.content,
           category: newThread.category,
           is_anonymous: newThread.isAnonymous,
-          is_urgent: newThread.isUrgent,
+          alert_type: newThread.alertType,
         }
       : {
           user_id: null,
@@ -308,7 +309,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
-    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, isUrgent: false });
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null });
     goBack('board');
     loadBoard();
   }
@@ -853,7 +854,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                       >
                         <Shield className="w-4 h-4" /> Admin Dashboard
                         {urgentPending > 0 && (
-                          <span className="ml-auto bg-red-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center" title="Urgent posts to review">
+                          <span className="ml-auto bg-red-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center" title="Posts to review">
                             {urgentPending}
                           </span>
                         )}
@@ -1017,7 +1018,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               <>
                 <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-2">{openThread.title}</h1>
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-3 mb-4">
-                  {openThread.is_urgent && <Star className="w-3.5 h-3.5 -mr-2 text-red-600 dark:text-red-400 fill-current shrink-0" title="Urgent" aria-label="Urgent" />}
+                  {openThread.alert_type && <FlagIcon type={openThread.alert_type} className="-mr-2" />}
                   <span className="font-medium text-slate-600 dark:text-slate-300">{openThread.authorLabel}</span>
                   <span>{formatTimestamp(openThread.created_at)}</span>
                   {canMessage(openThread) && (
@@ -1267,15 +1268,30 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               </div>
 
               {currentUser && (
-                <div>
-                  <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
-                    <input type="checkbox" checked={newThread.isUrgent} onChange={(e) => setNewThread({ ...newThread, isUrgent: e.target.checked })} className="mr-2" />
-                    <Star className="w-3.5 h-3.5 mr-1 text-red-600 dark:text-red-400 fill-current" /> Post Urgent
-                  </label>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 ml-6">
-                    For time-sensitive news only (a water shutoff, a safety issue). It's marked with a red star, and the admin can email it to neighbors who opted in.
+                <fieldset>
+                  <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Add a label to this post (optional)</legend>
+                  <div className="space-y-2">
+                    {[null, ...FLAG_ORDER].map((type) => (
+                      <label key={type || 'none'} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="post-flag"
+                          checked={newThread.alertType === type}
+                          onChange={() => setNewThread({ ...newThread, alertType: type })}
+                          className="mt-1"
+                        />
+                        <span className="w-3.5 mt-0.5 shrink-0">{type && <FlagIcon type={type} />}</span>
+                        <span>
+                          <span className="font-medium">{type ? FLAGS[type].label : 'No label'}</span>
+                          {type && <span className="block text-xs text-slate-400 dark:text-slate-500">{FLAGS[type].hint}</span>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                    A labeled post shows its icon on the board, and the admin may email it to neighbors who asked for announcements.
                   </p>
-                </div>
+                </fieldset>
               )}
 
               {currentUser && (
@@ -1378,7 +1394,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                     opening the thread first. */}
                 <AttachmentThumbs files={thread.attachments} onOpen={openLightbox} />
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-4">
-                  {thread.is_urgent && <Star className="w-3.5 h-3.5 -mr-2 text-red-600 dark:text-red-400 fill-current shrink-0" title="Urgent" aria-label="Urgent" />}
+                  {thread.alert_type && <FlagIcon type={thread.alert_type} className="-mr-2" />}
                   <span className="font-medium text-slate-600 dark:text-slate-300">{thread.authorLabel}</span>
                   <span>{formatTimestamp(thread.created_at)}</span>
                   <span className="flex items-center gap-1 ml-auto"><ThumbsUp className="w-3.5 h-3.5" /> {thread.likeCount}</span>

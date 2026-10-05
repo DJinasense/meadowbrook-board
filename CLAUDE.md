@@ -165,23 +165,30 @@ full-screen viewer.
   at build time (gitignored, regenerated on Vercel). `cmaps` is skipped
   deliberately — 1.5 MB, only needed for CJK PDFs.
 
-## Urgent posts, announcement emails, suspend account (added 2026-10-04)
+## Post labels, announcement emails, suspend account (added 2026-10-04)
 
-`supabase_urgent_and_suspend.sql` (run on live via the Supabase Management API,
-then checked with 34 rolled-back permission tests). What it does:
+`supabase_urgent_and_suspend.sql` then `supabase_post_flags.sql` (both run on live
+via the Supabase Management API, checked with 36 rolled-back permission tests).
+What they do:
 
-- **Urgent posts.** Members (not guests) tick "Post Urgent" under "Post
-  anonymously" on the new-thread form; the post gets a red filled `Star` left
-  of the author name (board list + open thread). `threads.is_urgent`; the
-  INSERT policy lets only signed-in, unmuted members set it, max 2 per rolling
-  24h, and refuses a pre-set `announced_at`. The columns are not user-updatable
-  (threads UPDATE is column-granted); only admin RPCs change them.
-  **threads INSERT is table-wide for anon/authenticated, so any new threads
-  column is insertable by guests unless the policy says otherwise.**
-- **Admin review.** Admin Dashboard -> Urgent tab (red count badge; red dot on
+- **Post labels.** Members (not guests) can pick one optional label on the
+  new-thread form (radio list under "Post anonymously"): **Urgent** (red filled
+  star), **Building work** (orange traffic cone: construction, repairs, water
+  shutoff) or **Heads up** (yellow filled star). The icon shows left of the
+  author name on the board list and in the open thread. Definitions live in one
+  place, `components/PostFlag.jsx` (`FLAGS`, `FLAG_ORDER`, `FlagIcon`); the
+  email wording/colors are mirrored in `KINDS` in `api/send-announcement.js`.
+  Stored in `threads.alert_type` (NULL, 'urgent', 'construction', 'attention',
+  CHECK-constrained). The old boolean `threads.is_urgent` was replaced by it.
+  The INSERT policy lets only signed-in, unmuted members set a label, max 2
+  labeled posts per rolling 24h, and refuses a pre-set `announced_at`. Neither
+  column is user-updatable (threads UPDATE is column-granted); only admin RPCs
+  change them. **threads INSERT is table-wide for anon/authenticated, so any
+  new threads column is insertable by guests unless the policy says otherwise.**
+- **Admin review.** Admin Dashboard -> Notices tab (red count badge; red dot on
   the account menu in `MainBoard`). Per post: "Email to subscribers" (with a
-  confirm step and the recipient count), "Not urgent (remove star)"
-  (`admin_dismiss_urgent`), or Remove. Sent posts are listed under "Already
+  confirm step and the recipient count), "Remove label"
+  (`admin_dismiss_flag`, button "Remove label"), or Remove. Sent posts are listed under "Already
   emailed". No cron job: an admin click sends immediately, which is what "check
   it isn't spam first" needs.
 - **Sending.** `api/send-announcement.js` (Vercel function; `vercel.json` now

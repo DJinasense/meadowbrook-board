@@ -1,4 +1,5 @@
-// Vercel serverless function: emails an admin-approved urgent post to every
+// Vercel serverless function: emails an admin-approved labeled post (urgent /
+// building work / heads up) to every
 // member who opted in under Settings -> "Notify me with important announcements".
 //
 // Why a server function: it needs the Resend key and members' email addresses,
@@ -19,6 +20,13 @@ const SITE_URL = (process.env.SITE_URL || 'https://mbb7.us').replace(/\/$/, '');
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 const BATCH_SIZE = 100; // Resend's batch limit
+
+// Wording and look per label; keys match threads.alert_type.
+const KINDS = {
+  urgent: { subject: 'Urgent', heading: 'Urgent notice', color: '#b91c1c', mark: '&#9733;', markText: '★' },
+  construction: { subject: 'Building work', heading: 'Building work notice', color: '#c2410c', mark: '&#128679;', markText: '🚧' },
+  attention: { subject: 'Heads up', heading: 'Heads up', color: '#a16207', mark: '&#9733;', markText: '★' },
+};
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -41,9 +49,10 @@ async function rpc(name, args, token) {
 function buildEmail(post) {
   const link = `${SITE_URL}/thread/${post.id}`;
   const preview = excerpt(post.content);
-  const subject = `Urgent: ${post.title}`;
+  const kind = KINDS[post.alert_type] || KINDS.attention;
+  const subject = `${kind.subject}: ${post.title}`;
   const text = [
-    'MeadowBrook Building 7 — urgent announcement',
+    `MeadowBrook Building 7 — ${kind.heading.toLowerCase()}`,
     '',
     post.title,
     '',
@@ -55,7 +64,7 @@ function buildEmail(post) {
     'To stop these emails, log in, open Settings, and uncheck that box.',
   ].join('\n');
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1e293b">
-  <p style="color:#b91c1c;font-weight:bold;margin:0 0 4px">&#9733; Urgent announcement &middot; MeadowBrook Building 7</p>
+  <p style="color:${kind.color};font-weight:bold;margin:0 0 4px">${kind.mark} ${kind.heading} &middot; MeadowBrook Building 7</p>
   <h2 style="margin:0 0 12px">${escapeHtml(post.title)}</h2>
   <p style="white-space:pre-line;line-height:1.5;margin:0 0 16px">${escapeHtml(preview)}</p>
   <p style="margin:0 0 24px"><a href="${link}" style="background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Read it on the board</a></p>
@@ -83,7 +92,7 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Could not check the post. Please try again.' });
   }
   const post = Array.isArray(claim.body) ? claim.body[0] : null;
-  if (!post) return res.status(409).json({ error: 'That post was already emailed, or is no longer an urgent live post.' });
+  if (!post) return res.status(409).json({ error: 'That post was already emailed, or is no longer a labeled live post.' });
 
   const release = () => rpc('admin_release_announcement', { p_thread: threadId }, token).catch(() => {});
 
