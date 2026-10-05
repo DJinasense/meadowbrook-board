@@ -79,6 +79,6 @@ GRANT EXECUTE ON FUNCTION public.admin_dismiss_flag(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_claim_announcement(uuid) TO authenticated;
 
 -- ---------------------------------------------------------------------------
--- STEP 2 (run only after the client using alert_type is deployed)
+-- STEP 2 (ran only after the client using alert_type is deployed)
 -- ---------------------------------------------------------------------------
--- ALTER TABLE threads DROP COLUMN is_urgent;
+ALTER TABLE threads DROP COLUMN IF EXISTS is_urgent; -- applied 2026-10-04 after the new client deployed
