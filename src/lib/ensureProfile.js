@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
 const PROFILE_COLUMNS =
-  'id, username, apartment, is_admin, is_muted, show_apartment, notify_on_reply, notify_daily_digest';
+  'id, username, apartment, is_admin, is_muted, is_suspended, show_apartment, notify_on_reply, notify_announcements';
 
 export async function fetchProfile(uid) {
   const { data } = await supabase.from('users').select(PROFILE_COLUMNS).eq('id', uid).maybeSingle();

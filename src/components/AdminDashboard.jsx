@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon, Search, EyeOff, Eye } from 'lucide-react';
+import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon, Search, EyeOff, Eye, Star } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -13,7 +13,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const [residentCount, setResidentCount] = useState(0);
   const [threadCount, setThreadCount] = useState(0);
 
-  const [tab, setTab] = useState('reports'); // 'reports' | 'members' | 'posts'
+  const [tab, setTab] = useState('reports'); // 'reports' | 'urgent' | 'members' | 'posts' | 'feedback'
 
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -26,6 +26,16 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [postFilter, setPostFilter] = useState('all'); // 'all' | 'visible' | 'removed'
   const [actionError, setActionError] = useState(null);
+
+  // Urgent posts: review, then email the neighbors who opted in
+  const [subscriberCount, setSubscriberCount] = useState(null);
+  const [confirmSendId, setConfirmSendId] = useState(null);
+  const [busyUrgentId, setBusyUrgentId] = useState(null);
+  const [urgentError, setUrgentError] = useState(null);
+  const [urgentNotice, setUrgentNotice] = useState(null);
+
+  // Feedback left by members who suspended their account
+  const [feedback, setFeedback] = useState([]);
 
   function authorLabel(row, directory) {
     if (!row) return 'Unknown';
@@ -98,7 +108,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setLoadingMembers(true);
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, email, apartment, is_admin, is_muted, created_at')
+      .select('id, username, email, apartment, is_admin, is_muted, is_suspended, notify_announcements, created_at')
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     setMembers(data || []);
@@ -120,7 +130,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setLoadingPosts(true);
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, title, content, category, user_id, guest_name, is_anonymous, status, created_at')
+      .select('id, title, content, category, user_id, guest_name, is_anonymous, is_urgent, announced_at, status, created_at')
       .order('created_at', { ascending: false });
     if (error) { console.error(error); setLoadingPosts(false); return; }
 
@@ -152,8 +162,58 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     loadStats();
   }
 
+  async function loadSubscriberCount() {
+    const { data, error } = await supabase.rpc('admin_announcement_recipients');
+    setSubscriberCount(error ? null : (data || []).length);
+  }
+
+  async function loadFeedback() {
+    const { data, error } = await supabase
+      .from('account_feedback')
+      .select('id, username, message, created_at')
+      .order('created_at', { ascending: false });
+    if (error) console.error(error);
+    setFeedback(data || []);
+  }
+
+  async function dismissUrgent(post) {
+    setUrgentError(null);
+    setBusyUrgentId(post.id);
+    const { error } = await supabase.rpc('admin_dismiss_urgent', { p_thread: post.id });
+    setBusyUrgentId(null);
+    if (error) { setUrgentError(error.message); return; }
+    loadPosts();
+  }
+
+  // The email is sent by a Vercel function (api/send-announcement.js) so the
+  // Resend key and members' addresses never reach the browser.
+  async function sendAnnouncement(post) {
+    setUrgentError(null);
+    setUrgentNotice(null);
+    setBusyUrgentId(post.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/send-announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ threadId: post.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Could not send (error ${res.status})`);
+      setUrgentNotice(body.sent === 0 ? (body.note || 'Nothing was sent.') : `"${post.title}" was emailed to ${body.sent} ${body.sent === 1 ? 'neighbor' : 'neighbors'}.`);
+    } catch (err) {
+      setUrgentError(err.message);
+    }
+    setBusyUrgentId(null);
+    setConfirmSendId(null);
+    loadPosts();
+    loadSubscriberCount();
+  }
+
   useEffect(() => {
     if (!currentUser?.is_admin) return;
+    loadSubscriberCount();
+    loadFeedback();
     loadReports();
     loadStats();
     loadMembers();
@@ -189,6 +249,10 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const filteredPosts = posts.filter((p) =>
     postFilter === 'all' ? true : postFilter === 'removed' ? p.status === 'removed' : p.status !== 'removed'
   );
+
+  const urgentToReview = posts.filter((p) => p.is_urgent && !p.announced_at && p.status === 'visible');
+  const urgentSent = posts.filter((p) => p.announced_at);
+  const memberName = (id) => members.find((m) => m.id === id)?.username;
 
   const tabButton = (id, label, badge) => (
     <button
@@ -281,9 +345,99 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
         <div className="flex items-center gap-1 mb-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
           {tabButton('reports', 'Reports', pending.length)}
+          {tabButton('urgent', 'Urgent', urgentToReview.length)}
           {tabButton('members', `Members (${members.length})`, 0)}
           {tabButton('posts', `Posts (${posts.length})`, 0)}
+          {tabButton('feedback', `Feedback (${feedback.length})`, 0)}
         </div>
+
+        {tab === 'urgent' && (
+          <div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Members can mark a post urgent. Check that each one is real, then email it to the{' '}
+              <strong className="text-slate-700 dark:text-slate-200">{subscriberCount ?? '…'}</strong>{' '}
+              {subscriberCount === 1 ? 'neighbor' : 'neighbors'} who chose "Notify me with important announcements."
+            </p>
+            {urgentNotice && <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">{urgentNotice}</p>}
+            {urgentError && <p className="text-sm text-red-500 dark:text-red-400 mb-3">{urgentError}</p>}
+            {loadingPosts ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Loading...</p>
+            ) : urgentToReview.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">Nothing waiting for review.</p>
+            ) : (
+              <div className="space-y-3">
+                {urgentToReview.map((p) => (
+                  <div key={p.id} className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-red-200 dark:border-red-900/60 p-4">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <Star className="w-4 h-4 text-red-600 dark:text-red-400 fill-current shrink-0" /> {p.title}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line mt-1.5 line-clamp-6">{p.content}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                      Posted by {p.user_id ? (memberName(p.user_id) || 'a member') : (p.guest_name || 'a guest')}
+                      {p.is_anonymous && p.user_id ? ' (shown as Anonymous)' : ''} · {new Date(p.created_at).toLocaleString()}
+                    </p>
+                    {confirmSendId === p.id ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-slate-600 dark:text-slate-300">
+                          Email this to {subscriberCount ?? 'everyone who opted in'} {subscriberCount === 1 ? 'neighbor' : 'neighbors'}? This can't be undone.
+                        </span>
+                        <button disabled={busyUrgentId === p.id} onClick={() => sendAnnouncement(p)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                          {busyUrgentId === p.id ? 'Sending...' : 'Send now'}
+                        </button>
+                        <button disabled={busyUrgentId === p.id} onClick={() => setConfirmSendId(null)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button disabled={busyUrgentId === p.id || subscriberCount === 0} onClick={() => { setUrgentNotice(null); setConfirmSendId(p.id); }} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                          Email to subscribers
+                        </button>
+                        <button disabled={busyUrgentId === p.id} onClick={() => dismissUrgent(p)} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50">
+                          Not urgent (remove star)
+                        </button>
+                        <button disabled={busyUrgentId === p.id} onClick={() => setPostStatus(p, 'removed')} className="flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700">
+                          <EyeOff className="w-3.5 h-3.5" /> Remove post
+                        </button>
+                        {subscriberCount === 0 && <span className="text-xs text-slate-400 dark:text-slate-500">No one has opted in yet.</span>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {urgentSent.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Already emailed</p>
+                <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
+                  {urgentSent.map((p) => (
+                    <p key={p.id} className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      {p.title} <span className="text-slate-400 dark:text-slate-500">· sent {new Date(p.announced_at).toLocaleString()}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'feedback' && (
+          <div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">What members wrote when they suspended their account.</p>
+            {feedback.length === 0 ? (
+              <p className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">No feedback yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {feedback.map((f) => (
+                  <div key={f.id} className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line">{f.message}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">{f.username || 'Former member'} · {new Date(f.created_at).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {tab === 'members' && (
           <div>
@@ -315,6 +469,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                           {m.id === currentUser.id && <span className="text-xs font-normal text-slate-400 dark:text-slate-500">(you)</span>}
                           {m.is_admin && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-white dark:bg-slate-600">Admin</span>}
                           {m.is_muted && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Muted</span>}
+                          {m.is_suspended && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-200">Suspended</span>}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
                       </div>

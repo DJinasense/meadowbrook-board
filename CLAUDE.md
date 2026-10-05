@@ -165,6 +165,56 @@ full-screen viewer.
   at build time (gitignored, regenerated on Vercel). `cmaps` is skipped
   deliberately — 1.5 MB, only needed for CJK PDFs.
 
+## Urgent posts, announcement emails, suspend account (added 2026-10-04)
+
+`supabase_urgent_and_suspend.sql` (run on live via the Supabase Management API,
+then checked with 34 rolled-back permission tests). What it does:
+
+- **Urgent posts.** Members (not guests) tick "Post Urgent" under "Post
+  anonymously" on the new-thread form; the post gets a red filled `Star` left
+  of the author name (board list + open thread). `threads.is_urgent`; the
+  INSERT policy lets only signed-in, unmuted members set it, max 2 per rolling
+  24h, and refuses a pre-set `announced_at`. The columns are not user-updatable
+  (threads UPDATE is column-granted); only admin RPCs change them.
+  **threads INSERT is table-wide for anon/authenticated, so any new threads
+  column is insertable by guests unless the policy says otherwise.**
+- **Admin review.** Admin Dashboard -> Urgent tab (red count badge; red dot on
+  the account menu in `MainBoard`). Per post: "Email to subscribers" (with a
+  confirm step and the recipient count), "Not urgent (remove star)"
+  (`admin_dismiss_urgent`), or Remove. Sent posts are listed under "Already
+  emailed". No cron job: an admin click sends immediately, which is what "check
+  it isn't spam first" needs.
+- **Sending.** `api/send-announcement.js` (Vercel function; `vercel.json` now
+  excludes `/api/` from the SPA rewrite). It forwards the admin's own login
+  token to Supabase, so no service-role key is needed: `admin_claim_announcement`
+  (atomic "mark sent", blocks double sends) -> `admin_announcement_recipients`
+  (opted in AND not suspended) -> Resend batch API, one message per person ->
+  `admin_release_announcement` if Resend refuses. Sender `MeadowBrook Board
+  <noreply@dgrvip.net>`. **Needs `RESEND_API_KEY` in the Vercel project env
+  vars (the user adds it themselves; a send-only key is enough). Until it's set
+  the Send button shows "Email sending is not set up yet".** Logic was tested
+  with a mocked Supabase/Resend; no real email has been sent through it yet.
+- **Settings.** The "daily digest" checkbox is gone, replaced by "Notify me
+  with important announcements" (`users.notify_announcements`, default false,
+  in the UPDATE grant). `notify_daily_digest` and `notify_on_reply` columns
+  still exist; **nothing sends reply notifications either**, and the reply
+  checkbox is still shown.
+- **Suspend my account.** Link at the bottom of Settings -> confirm step with
+  an optional feedback box -> `suspend_my_account(p_feedback)`: sets
+  `is_suspended`, clears every notify flag, stores feedback in
+  `account_feedback` (admin-readable only, shows the display name), then signs
+  out. `is_muted(uid)` now also returns true for suspended users, so every
+  existing RLS check blocks their posts/edits/DMs. On next login a banner
+  offers "Reactivate my account" (`reactivate_my_account`). Their old posts
+  stay. Admin: Members tab shows a "Suspended" tag; Feedback tab lists the notes.
+  This is a pause, not deletion; a real "delete my account" is not built.
+- **Running SQL as Claude.** `C:/Users/DGR/.secrets/supabase.env` holds a
+  Supabase Management API token, so a session can run SQL against the live
+  project (POST `/v1/projects/<ref>/database/query`) and read/patch auth
+  config. Earlier notes saying "no way to run DDL" predate that. Don't print
+  the token; wrap risky test SQL in a `DO` block that ends with RAISE EXCEPTION
+  so it rolls back.
+
 ## Database (Supabase) — additive migrations already applied
 
 The original schema (`users`, `threads`, `replies`, `likes`, `files`,
@@ -233,8 +283,9 @@ verified with 24 scripted permission checks + UI walkthrough) adds:
   can't edit. threads/replies UPDATE is column-granted — admins still need
   `status` in that grant for Remove/Restore.
 - Replies are members-only (guests see a sign-up prompt; RLS enforces it).
-- Notifications are NOT implemented (the notify_* columns exist but nothing
-  sends email) — don't advertise them in copy.
+- Reply/digest notifications are NOT implemented (the notify_* columns exist but
+  nothing sends email) — don't advertise them in copy. The only email feature is
+  the admin-sent urgent announcement (see the section above).
 
 `supabase_open_signup.sql` is a second, separate file (added when invite
 codes were parked, see Signup section below) — unlike `supabase_additions.sql`

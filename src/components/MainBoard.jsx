@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart, Star } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -22,10 +22,10 @@ function PageBG({ children }) {
 // PayPal hosted donate button (donation page set up in the owner's PayPal account).
 const DONATE_URL = 'https://www.paypal.com/donate/?hosted_button_id=62QBNJL452VKE';
 
-const MUTED_NOTICE = 'An admin has paused posting on your account. You can still read the board.';
+const MUTED_NOTICE = 'Posting is paused on your account. You can still read the board.';
 
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, theme, onToggleTheme }) {
-  const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_daily_digest }
+  const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_announcements, is_suspended }
   // The current screen comes from the URL/history rather than local state, so
   // the browser's Back button walks back through the board instead of leaving
   // the site. See src/lib/router.js.
@@ -38,6 +38,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [settingsForm, setSettingsForm] = useState(null);
   const [settingsError, setSettingsError] = useState(null);
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
+  const [settingsStep, setSettingsStep] = useState('main'); // 'main' | 'suspend'
+  const [suspendFeedback, setSuspendFeedback] = useState('');
+  const [urgentPending, setUrgentPending] = useState(0); // admins: urgent posts not yet reviewed
   const [openReplies, setOpenReplies] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,7 +51,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [threads, setThreads] = useState([]);
 
   const [guestName, setGuestName] = useState('');
-  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false });
+  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, isUrgent: false });
   const [newReply, setNewReply] = useState({ content: '', isAnonymous: false });
   const [threadFormError, setThreadFormError] = useState(null);
   const [replyFormError, setReplyFormError] = useState(null);
@@ -120,7 +123,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, user_id, guest_name, title, content, category, is_anonymous, created_at')
+      .select('id, user_id, guest_name, title, content, category, is_anonymous, is_urgent, created_at')
       .eq('status', 'visible')
       .order('created_at', { ascending: false });
 
@@ -174,6 +177,20 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   useEffect(() => {
     loadBoard();
   }, [loadBoard]);
+
+  // Admins get a red dot on the account menu while urgent posts await review.
+  useEffect(() => {
+    if (!currentUser?.is_admin) { setUrgentPending(0); return; }
+    let active = true;
+    supabase
+      .from('threads')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_urgent', true)
+      .is('announced_at', null)
+      .eq('status', 'visible')
+      .then(({ count }) => { if (active) setUrgentPending(count || 0); });
+    return () => { active = false; };
+  }, [currentUser?.is_admin, threads]);
 
   async function loadThreadDetail(threadId) {
     const { data: replyRows, error } = await supabase
@@ -269,6 +286,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           content: newThread.content,
           category: newThread.category,
           is_anonymous: newThread.isAnonymous,
+          is_urgent: newThread.isUrgent,
         }
       : {
           user_id: null,
@@ -290,7 +308,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
-    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false });
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, isUrgent: false });
     goBack('board');
     loadBoard();
   }
@@ -426,8 +444,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       username: currentUser.username,
       show_apartment: currentUser.show_apartment,
       notify_on_reply: currentUser.notify_on_reply,
-      notify_daily_digest: currentUser.notify_daily_digest,
+      notify_announcements: currentUser.notify_announcements,
     });
+    setSettingsStep('main');
+    setSuspendFeedback('');
     setSettingsError(null);
     setShowSettings(true);
     setShowAccountMenu(false);
@@ -448,7 +468,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         username: settingsForm.username.trim(),
         show_apartment: settingsForm.show_apartment,
         notify_on_reply: settingsForm.notify_on_reply,
-        notify_daily_digest: settingsForm.notify_daily_digest,
+        notify_announcements: settingsForm.notify_announcements,
       })
       .eq('id', currentUser.id);
 
@@ -463,6 +483,26 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     setShowSettings(false);
     showToast('Settings saved');
     loadBoard();
+  }
+
+  // Suspending pauses the account (see supabase_urgent_and_suspend.sql): the
+  // RPC flags it and stores the optional feedback, then we sign the person out.
+  async function handleSuspend() {
+    setSettingsSubmitting(true);
+    setSettingsError(null);
+    const { error } = await supabase.rpc('suspend_my_account', { p_feedback: suspendFeedback });
+    setSettingsSubmitting(false);
+    if (error) { setSettingsError(error.message); return; }
+    setShowSettings(false);
+    await supabase.auth.signOut();
+    showToast('Your account is suspended. Log back in any time to reactivate it.');
+  }
+
+  async function handleReactivate() {
+    const { error } = await supabase.rpc('reactivate_my_account');
+    if (error) { showToast(error.message); return; }
+    await refreshCurrentUser();
+    showToast('Welcome back — your account is active again');
   }
 
   function formatTimestamp(value) {
@@ -617,6 +657,47 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
           <X className="w-5 h-5" />
         </button>
+        {settingsStep === 'suspend' ? (
+          <>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Suspend my account</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+              You'll be logged out, you won't get any emails, and you won't be able to post or message.
+              Your past posts stay on the board. You can come back any time: just log in and choose "Reactivate."
+            </p>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+              Anything we could do better? (optional)
+            </label>
+            <textarea
+              value={suspendFeedback}
+              onChange={(e) => setSuspendFeedback(e.target.value)}
+              maxLength={1000}
+              rows={4}
+              placeholder="Your feedback goes to the board admin, along with your display name."
+              className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm mb-4 resize-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {settingsError && (
+              <div className="flex items-start gap-2 text-red-500 dark:text-red-400 text-sm mb-4">
+                <X className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{settingsError}</span>
+              </div>
+            )}
+            <button
+              onClick={handleSuspend}
+              disabled={settingsSubmitting}
+              className="w-full bg-red-600 text-white py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {settingsSubmitting ? 'Suspending...' : 'Suspend my account'}
+            </button>
+            <button
+              onClick={() => { setSettingsStep('main'); setSettingsError(null); }}
+              disabled={settingsSubmitting}
+              className="w-full mt-2 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Never mind
+            </button>
+          </>
+        ) : (
+        <>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-5">Account Settings</h3>
 
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Display name</label>
@@ -647,11 +728,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             />
           </label>
           <label className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
-            Send me a daily digest email
+            Notify me with important announcements
             <input
               type="checkbox"
-              checked={settingsForm.notify_daily_digest}
-              onChange={(e) => setSettingsForm({ ...settingsForm, notify_daily_digest: e.target.checked })}
+              checked={settingsForm.notify_announcements}
+              onChange={(e) => setSettingsForm({ ...settingsForm, notify_announcements: e.target.checked })}
               className="ml-3"
             />
           </label>
@@ -671,6 +752,14 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         >
           {settingsSubmitting ? 'Saving...' : 'Save Settings'}
         </button>
+        <button
+          onClick={() => { setSettingsStep('suspend'); setSettingsError(null); }}
+          className="w-full mt-3 py-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+        >
+          Suspend my account
+        </button>
+        </>
+        )}
       </div>
     </div>
   );
@@ -705,6 +794,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   );
 
   const TopBar = () => (
+    <>
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-blue-100 dark:border-slate-700 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         <button onClick={() => navigate('landing')} className="flex items-center gap-2.5">
@@ -740,7 +830,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white pl-1.5"
               >
                 <span className="hidden sm:inline">{currentUser.username}</span>
-                <ChevronDown className="w-4 h-4" />
+                <span className="relative">
+                  <ChevronDown className="w-4 h-4" />
+                  {urgentPending > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-600" />}
+                </span>
               </button>
 
               {showAccountMenu && (
@@ -759,6 +852,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                       >
                         <Shield className="w-4 h-4" /> Admin Dashboard
+                        {urgentPending > 0 && (
+                          <span className="ml-auto bg-red-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center" title="Urgent posts to review">
+                            {urgentPending}
+                          </span>
+                        )}
                       </button>
                     )}
                     <button
@@ -793,6 +891,15 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </div>
       </div>
     </header>
+    {currentUser?.is_suspended && (
+      <div className="bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm">
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <span>Your account is suspended. You can read the board, but you can't post or message.</span>
+          <button onClick={handleReactivate} className="font-semibold underline hover:no-underline">Reactivate my account</button>
+        </div>
+      </div>
+    )}
+    </>
   );
 
   // ---------- views ----------
@@ -910,6 +1017,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               <>
                 <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-3 mb-2">{openThread.title}</h1>
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-3 mb-4">
+                  {openThread.is_urgent && <Star className="w-3.5 h-3.5 -mr-2 text-red-600 dark:text-red-400 fill-current shrink-0" title="Urgent" aria-label="Urgent" />}
                   <span className="font-medium text-slate-600 dark:text-slate-300">{openThread.authorLabel}</span>
                   <span>{formatTimestamp(openThread.created_at)}</span>
                   {canMessage(openThread) && (
@@ -1159,6 +1267,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               </div>
 
               {currentUser && (
+                <div>
+                  <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={newThread.isUrgent} onChange={(e) => setNewThread({ ...newThread, isUrgent: e.target.checked })} className="mr-2" />
+                    <Star className="w-3.5 h-3.5 mr-1 text-red-600 dark:text-red-400 fill-current" /> Post Urgent
+                  </label>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 ml-6">
+                    For time-sensitive news only (a water shutoff, a safety issue). It's marked with a red star, and the admin can email it to neighbors who opted in.
+                  </p>
+                </div>
+              )}
+
+              {currentUser && (
                 <FilePicker files={newThreadFiles} onChange={setNewThreadFiles} disabled={submittingThread || currentUser.is_muted} />
               )}
 
@@ -1258,6 +1378,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                     opening the thread first. */}
                 <AttachmentThumbs files={thread.attachments} onOpen={openLightbox} />
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-4">
+                  {thread.is_urgent && <Star className="w-3.5 h-3.5 -mr-2 text-red-600 dark:text-red-400 fill-current shrink-0" title="Urgent" aria-label="Urgent" />}
                   <span className="font-medium text-slate-600 dark:text-slate-300">{thread.authorLabel}</span>
                   <span>{formatTimestamp(thread.created_at)}</span>
                   <span className="flex items-center gap-1 ml-auto"><ThumbsUp className="w-3.5 h-3.5" /> {thread.likeCount}</span>
