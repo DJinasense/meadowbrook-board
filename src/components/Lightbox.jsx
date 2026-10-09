@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Download, ExternalLink, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { loadPdf, renderPageToCanvas } from '../lib/pdfRender';
-import { downloadUrl } from '../lib/attachments';
+import { downloadUrl, fileKindLabel } from '../lib/attachments';
 
 // Every page of a PDF, drawn one after another into a scrollable column.
 function PdfPages({ url }) {
@@ -56,6 +56,19 @@ function PdfPages({ url }) {
       {status === 'ready' && pageCount > 1 && (
         <p className="text-center text-xs text-slate-400 pt-3 pb-1">{pageCount} pages</p>
       )}
+    </div>
+  );
+}
+
+// Word/Excel documents have no in-browser renderer here — the header already
+// has working Download and Open-in-new-tab controls, so this just explains why
+// there's no preview rather than failing silently.
+function DocPanel({ file }) {
+  return (
+    <div className="text-center text-sm text-slate-300 py-10 px-6 space-y-3">
+      <FileText className="w-10 h-10 mx-auto text-slate-500" />
+      <p>{fileKindLabel(file)} files can't be previewed in the browser.</p>
+      <p className="text-slate-400">Use Download or Open in a new tab above.</p>
     </div>
   );
 }
@@ -120,8 +133,10 @@ export default function Lightbox({ files, startIndex = 0, onClose }) {
       <div className="flex-1 min-h-0 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         {file.file_type === 'image' ? (
           <img src={file.file_url} alt={file.file_name} className="max-h-full max-w-full object-contain" />
-        ) : (
+        ) : file.file_type === 'pdf' ? (
           <PdfPages url={file.file_url} />
+        ) : (
+          <DocPanel file={file} />
         )}
       </div>
 

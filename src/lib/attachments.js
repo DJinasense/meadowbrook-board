@@ -1,18 +1,44 @@
 import { supabase } from './supabaseClient';
 
 const BUCKET = 'community-files';
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_FILES = 5;
-// Must match allowed_mime_types on the bucket (supabase_member_features.sql).
-export const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+// Must match allowed_mime_types on the bucket (supabase_archives.sql).
+export const ALLOWED_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
 
 export function validateFiles(files) {
   if (files.length > MAX_FILES) return `You can attach up to ${MAX_FILES} files.`;
   for (const f of files) {
-    if (!ALLOWED_TYPES.includes(f.type)) return `"${f.name}" isn't a photo or PDF.`;
-    if (f.size > MAX_FILE_BYTES) return `"${f.name}" is over 10 MB.`;
+    if (!ALLOWED_TYPES.includes(f.type)) return `"${f.name}" isn't a photo, PDF, Word, or Excel file.`;
+    if (f.size > MAX_FILE_BYTES) return `"${f.name}" is over 25 MB.`;
   }
   return null;
+}
+
+// files.file_type is 'image' | 'pdf' | 'document' (document = Office/other —
+// anything pdf.js can't parse, so it never goes through PdfThumb/PdfPages).
+function fileTypeFromMime(mime) {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime === 'application/pdf') return 'pdf';
+  return 'document';
+}
+
+// A short badge for a non-PDF document tile, derived from the filename since
+// the stored MIME type isn't surfaced to these components. Unrecognized
+// extensions fall back to "FILE" rather than guessing.
+export function fileKindLabel(file) {
+  const ext = (file.file_name || '').split('.').pop()?.toUpperCase();
+  if (file.file_type === 'pdf') return 'PDF';
+  if (['DOC', 'DOCX'].includes(ext)) return 'DOCX';
+  if (['XLS', 'XLSX'].includes(ext)) return 'XLSX';
+  return ext || 'FILE';
 }
 
 // Uploads into <userId>/<postId>/..., the folder layout the storage policy
@@ -32,7 +58,7 @@ export async function uploadAttachments(files, userId, { threadId = null, replyI
       reply_id: replyId,
       file_url: data.publicUrl,
       file_name: file.name,
-      file_type: file.type.startsWith('image/') ? 'image' : 'document',
+      file_type: fileTypeFromMime(file.type),
       file_size: file.size,
     });
     if (rowError) failed.push(file.name);

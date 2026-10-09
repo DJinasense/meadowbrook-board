@@ -25,6 +25,7 @@ const PATHS = {
   admin: '/admin',
   messages: '/messages',
   welcome: '/welcome',
+  archives: '/archives',
 };
 
 function routeToPath({ view, id }) {

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { validateFiles, uploadAttachments, fetchAttachments } from '../lib/attachments';
+import { ARCHIVE_FOLDER_ORDER, ARCHIVE_FOLDERS } from '../lib/archiveFolders';
 import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
 import { FilePicker, AttachmentList, AttachmentThumbs } from './Attachments';
 import Lightbox from './Lightbox';
@@ -25,7 +26,7 @@ const DONATE_URL = 'https://www.paypal.com/donate/?hosted_button_id=62QBNJL452VK
 
 const MUTED_NOTICE = 'Posting is paused on your account. You can still read the board.';
 
-export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, theme, onToggleTheme }) {
+export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, onOpenArchives, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_announcements, is_suspended }
   // The current screen comes from the URL/history rather than local state, so
   // the browser's Back button walks back through the board instead of leaving
@@ -52,7 +53,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [threads, setThreads] = useState([]);
 
   const [guestName, setGuestName] = useState('');
-  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null });
+  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
   const [newReply, setNewReply] = useState({ content: '', isAnonymous: false });
   const [threadFormError, setThreadFormError] = useState(null);
   const [replyFormError, setReplyFormError] = useState(null);
@@ -87,7 +88,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     { id: 'general', name: 'General', color: 'bg-blue-600' },
     { id: 'building', name: 'Building Matters', color: 'bg-amber-600' },
     { id: 'complaints', name: 'Complaints & Concerns', color: 'bg-rose-600' },
-    { id: 'board', name: 'Board & Management', color: 'bg-purple-600' }
+    { id: 'board', name: 'Board & Management', color: 'bg-purple-600' },
+    { id: 'archives', name: 'Archives', color: 'bg-teal-600' },
   ];
 
 
@@ -275,6 +277,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       setThreadFormError('Please fill in a title and message');
       return;
     }
+    if (newThread.category === 'archives' && (!newThread.archiveFolder || !newThread.docDate)) {
+      setThreadFormError('Please choose a folder and the date on the document');
+      return;
+    }
     const fileProblem = currentUser ? validateFiles(newThreadFiles) : null;
     if (fileProblem) { setThreadFormError(fileProblem); return; }
     setSubmittingThread(true);
@@ -288,6 +294,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           category: newThread.category,
           is_anonymous: newThread.isAnonymous,
           alert_type: newThread.alertType,
+          archive_folder: newThread.category === 'archives' ? newThread.archiveFolder : null,
+          doc_date: newThread.category === 'archives' ? newThread.docDate : null,
         }
       : {
           user_id: null,
@@ -309,7 +317,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
-    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null });
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
     goBack('board');
     loadBoard();
   }
@@ -520,6 +528,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   const filteredThreads = threads
+    .filter((t) => t.category !== 'archives') // archives live on their own page, see Archives.jsx
     .filter((t) => filter === 'all' || t.category === filter)
     .filter((t) =>
       searchQuery === '' ||
@@ -1237,11 +1246,38 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   onChange={(e) => setNewThread({ ...newThread, category: e.target.value })}
                   className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  {categories.filter((c) => c.id !== 'all').map((cat) => (
+                  {categories.filter((c) => c.id !== 'all' && (c.id !== 'archives' || currentUser)).map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
               </div>
+
+              {newThread.category === 'archives' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Date on the document</label>
+                    <input
+                      type="date"
+                      value={newThread.docDate}
+                      onChange={(e) => setNewThread({ ...newThread, docDate: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Folder</label>
+                    <select
+                      value={newThread.archiveFolder || ''}
+                      onChange={(e) => setNewThread({ ...newThread, archiveFolder: e.target.value || null })}
+                      className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Choose a folder…</option>
+                      {ARCHIVE_FOLDER_ORDER.map((id) => (
+                        <option key={id} value={id}>{ARCHIVE_FOLDERS[id].label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Message</label>
@@ -1262,7 +1298,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   </label>
                 ) : (
                   <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Attaching photos & PDFs requires a member account
+                    <Lock className="w-3 h-3" /> Attaching files requires a member account
                   </span>
                 )}
               </div>
@@ -1361,7 +1397,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
         <div className="mb-5 flex items-center gap-2 overflow-x-auto pb-1">
           <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-          {categories.map((cat) => (
+          {categories.filter((c) => c.id !== 'archives').map((cat) => (
             <button
               key={cat.id}
               onClick={() => setFilter(cat.id)}
@@ -1372,6 +1408,14 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               {cat.name}
             </button>
           ))}
+          {onOpenArchives && (
+            <button
+              onClick={onOpenArchives}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors bg-teal-600/90 text-white hover:bg-teal-700"
+            >
+              Archives
+            </button>
+          )}
         </div>
 
         {loadingBoard ? (

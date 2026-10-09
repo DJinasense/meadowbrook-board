@@ -222,6 +222,64 @@ What they do:
   the token; wrap risky test SQL in a `DO` block that ends with RAISE EXCEPTION
   so it rolls back.
 
+## Document Archives (added 2026-10-09)
+
+`supabase_archives.sql` (run on live, verified with a rolled-back permission
+test suite covering guest/member × archives/normal-post combinations). A
+standing-documents page — board minutes, budgets, balance sheets, letters from
+the property manager — separate from the discussion feed, reached from the
+board's category-chip row via an **Archives** button (`components/Archives.jsx`,
+route `/archives` in `lib/router.js`).
+
+- **No new table.** An archive entry is an ordinary `threads` row with
+  `category = 'archives'` plus two new columns: `archive_folder` (text,
+  CHECK-constrained) and `doc_date` (date — the date *on* the document, not the
+  upload time). This reuses attachments, likes, replies, reporting, author
+  labels, and admin Remove/Restore with no new moderation path. Opening an
+  entry from Archives just calls `navigate('thread', id)` — the existing
+  thread view renders it; `MainBoard`'s `loadBoard` query still loads archive
+  rows (so `openThread`'s `threads.find(...)` can find them), they're excluded
+  from the board's own list purely at render in `filteredThreads`.
+- **Folder ids** live in one place, `lib/archiveFolders.js`
+  (`ARCHIVE_FOLDER_ORDER`, `ARCHIVE_FOLDERS`): `board_meetings`,
+  `special_assessments`, `building_budgeting`, `balance_sheets`,
+  `code_related`. They must match the SQL CHECK constraint exactly — change
+  one place, change both.
+- **Who can file.** Any signed-in member (not guests, not even muted members —
+  `NOT is_muted` is still required). The category `<select>` on the create
+  form only offers "Archives" when `currentUser` exists. **Same guest-write
+  risk as `alert_type`**: `threads` INSERT is table-wide for anon/authenticated,
+  so `archive_folder`/`doc_date` are guest-writable unless the `"Anyone can
+  post threads"` policy's `WITH CHECK` says otherwise — it does: the guest
+  branch requires `category <> 'archives' AND archive_folder IS NULL AND
+  doc_date IS NULL`; the member branch requires both columns set (and
+  matching the CHECK) when `category = 'archives'`, both NULL otherwise.
+  Neither column is in the threads UPDATE grant — same as `alert_type`, a
+  misfiled document gets removed and re-posted rather than edited.
+- **Bucket (`community-files`) widened**: 10 MB → 25 MB per file, and Word/Excel
+  added (`application/msword`, the Office Open XML `.docx`/`.xlsx` MIME types)
+  alongside the existing images/PDF. `lib/attachments.js` mirrors this
+  (`MAX_FILE_BYTES`, `ALLOWED_TYPES`) — must match the bucket's
+  `allowed_mime_types` or uploads fail server-side with a confusing error.
+- **`files.file_type` is now three-way**: `'image' | 'pdf' | 'document'`
+  (`'document'` now means Office/other — anything pdf.js can't parse — whereas
+  it used to mean "PDF", backfilled by the migration). pdf.js can only render
+  PDFs, so `Attachments.jsx`'s `Thumb` and `Lightbox.jsx` both branch three
+  ways: image → `<img>`, `pdf` → the existing `PdfThumb`/`PdfPages`, anything
+  else → a plain icon+badge (`DocThumb`) or, in the lightbox, a "can't be
+  previewed in the browser" panel pointing at the Download/Open-in-new-tab
+  buttons that are already in the header. `lib/attachments.js`'s
+  `fileKindLabel(file)` derives the PDF/DOCX/XLSX badge text from the
+  filename extension (the MIME type isn't surfaced to these components).
+- **Why the Archives list shows no PDF thumbnails.** A pdf.js thumbnail
+  downloads the entire document to draw page 1. The free Supabase plan's real
+  ceiling isn't storage (1 GB, ~3% used even after the owner's ~31 MB of
+  documents) — it's 5 GB/month **egress**. A list of 100+ archived documents is
+  exactly where repeated full-document downloads just to render thumbnails
+  could burn through that, so `Archives.jsx` intentionally shows icons and
+  metadata only; bytes are fetched when someone actually opens a document. The
+  board list is short enough that its existing thumbnails stay as they are.
+
 ## Database (Supabase) — additive migrations already applied
 
 The original schema (`users`, `threads`, `replies`, `likes`, `files`,

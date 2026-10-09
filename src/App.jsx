@@ -8,6 +8,7 @@ import ResetPasswordFlow from './components/ResetPasswordFlow';
 import MainBoard from './components/MainBoard';
 import AdminDashboard from './components/AdminDashboard';
 import Messages from './components/Messages';
+import Archives from './components/Archives';
 
 // Read the URL before supabase-js clears it. A confirmation email link lands
 // here with "#...type=signup" (supabase-js signs them in from the same hash);
@@ -95,6 +96,10 @@ function App() {
     );
   }
 
+  if (route.view === 'archives') {
+    return <Archives onBack={() => goBack('board')} theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
   // landing / board / thread / create are MainBoard's own business; it reads
   // the route itself. Unknown paths fall through to here too.
   return (
@@ -103,6 +108,7 @@ function App() {
       onRequestLogin={() => navigate('login')}
       onOpenAdmin={() => navigate('admin')}
       onOpenMessages={(userId) => navigate('messages', userId || null)}
+      onOpenArchives={() => navigate('archives')}
       theme={theme}
       onToggleTheme={toggleTheme}
     />

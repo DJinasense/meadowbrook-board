@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Paperclip, FileText, X, Download, Maximize2 } from 'lucide-react';
-import { ALLOWED_TYPES, MAX_FILES, downloadUrl } from '../lib/attachments';
+import { ALLOWED_TYPES, MAX_FILES, downloadUrl, fileKindLabel } from '../lib/attachments';
 import { loadPdf, renderPageToCanvas } from '../lib/pdfRender';
 
 function formatSize(bytes) {
@@ -39,7 +39,7 @@ export function FilePicker({ files, onChange, disabled }) {
           onClick={() => inputRef.current?.click()}
           className="flex items-center gap-1.5 text-sm font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-50"
         >
-          <Paperclip className="w-4 h-4" /> Attach photos or PDFs
+          <Paperclip className="w-4 h-4" /> Attach photos, PDFs, Word, or Excel files
         </button>
       )}
       {files.length > 0 && (
@@ -74,7 +74,7 @@ export function FilePicker({ files, onChange, disabled }) {
 // The first page of a PDF, drawn small. Rendering only starts once the tile
 // scrolls into view: a board full of threads shouldn't fetch and parse every
 // attached document the moment it loads.
-function PdfThumb({ url, width }) {
+function PdfThumb({ url, width, label }) {
   const boxRef = useRef(null);
   const canvasRef = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -117,9 +117,20 @@ function PdfThumb({ url, width }) {
       {status !== 'ready' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-400">
           <FileText className="w-7 h-7 text-rose-600" />
-          <span className="text-[10px] font-semibold tracking-wide">PDF</span>
+          <span className="text-[10px] font-semibold tracking-wide">{label}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// A Word/Excel (or otherwise unpreviewable) attachment never touches pdf.js —
+// there's nothing to render, just an icon, a kind badge, and the filename.
+function DocThumb({ file, label }) {
+  return (
+    <div className="w-full h-full bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-1.5 px-2 text-center">
+      <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+      <span className="text-[10px] font-semibold tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
     </div>
   );
 }
@@ -148,8 +159,10 @@ function Thumb({ file, size, onOpen }) {
     >
       {file.file_type === 'image' ? (
         <img src={file.file_url} alt={file.file_name} loading="lazy" className="w-full h-full object-cover" />
+      ) : file.file_type === 'pdf' ? (
+        <PdfThumb url={file.file_url} width={width} label={fileKindLabel(file)} />
       ) : (
-        <PdfThumb url={file.file_url} width={width} />
+        <DocThumb file={file} label={fileKindLabel(file)} />
       )}
       <span className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/15 transition-colors" />
       <span className="absolute top-1.5 right-1.5 bg-slate-900/60 group-hover:bg-slate-900/80 rounded-md p-1 transition-colors">
