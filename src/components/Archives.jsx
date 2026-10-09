@@ -149,7 +149,7 @@ export default function Archives({ onBack, theme, onToggleTheme }) {
             folder === 'all' ? 'bg-teal-600 text-white' : 'bg-white/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700'
           }`}
         >
-          All folders
+          All
         </button>
         {ARCHIVE_FOLDER_ORDER.map((id) => (
           <button
