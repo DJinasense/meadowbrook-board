@@ -116,7 +116,8 @@ fixes that with a ~140-line `pushState`/`popstate` router. **Do not add
 react-router** — this is deliberate, and it keeps the "one string per screen"
 model the components already used.
 
-- `PATHS` maps a view name to a URL: `/`, `/board`, `/thread/<id>`, `/new`,
+- `PATHS` maps a view name to a URL: `/`, `/board` (General board), `/members`
+  (Members board), `/thread/<id>`, `/new/<board>` (`general` | `members`),
   `/login`, `/signup`, `/reset-password`, `/admin`, `/messages/<id>`,
   `/welcome`. Adding a screen means adding a line there.
 - Only `App.jsx` (which screen to render) and `MainBoard.jsx`
@@ -279,6 +280,60 @@ route `/archives` in `lib/router.js`).
   could burn through that, so `Archives.jsx` intentionally shows icons and
   metadata only; bytes are fetched when someone actually opens a document. The
   board list is short enough that its existing thumbnails stay as they are.
+
+## Two boards: General (public) and Members (added 2026-10-11)
+
+`supabase_two_boards.sql` — **WRITTEN AND TESTED, NOT YET RUN ON LIVE.** The user
+must run it in the Supabase SQL Editor *before* the matching frontend deploys.
+(Tested on a scratch Postgres 16 with stubbed Supabase roles/`auth.uid()`: 33
+guest/member/admin permission checks, idempotent re-run, and the abort path. It
+has never touched the real project, so run its VERIFY queries afterwards.)
+
+- **Model.** One `threads` table, new `threads.board` (`'general'|'members'`,
+  NOT NULL, **default `'members'`**). Replies/likes/files have no board column;
+  they inherit from their thread via RLS sub-selects. **Every thread that
+  existed at migration time becomes Members; General starts empty** (user's
+  choice). `board` is not in the threads UPDATE grant. CHECK: archives can only
+  be on `members`.
+- **Who can do what.** Guests: read + post (anonymously) on General only, no
+  labels, no archives, still no replies/likes. Members (any signed-in user with a
+  `users` row): read + post on both boards; Archives, uploads, DMs, edit/delete
+  own posts. The Members board is closed to guests **by RLS**, not just the UI.
+- **The migration drops every existing SELECT policy** on
+  threads/replies/likes/files (their original names aren't in the repo and
+  permissive policies OR together) and recreates them board-aware. It aborts and
+  rolls back if a `FOR ALL` policy exists on those tables. The "max 2 labeled
+  posts/24h" count moved into `labeled_posts_last_day()` (SECURITY DEFINER)
+  because the old in-policy sub-select on `threads` now hits "infinite
+  recursion detected in policy" — don't move it back inline.
+- **Units.** Signup now requires a unit (`<select>`, 56 options, `lib/units.js`;
+  must match `normalize_unit()` in the SQL). Stored in `users.apartment` as
+  `Apt 205`. The picked unit travels in signup metadata (`user_metadata.unit`);
+  `handle_confirmed_user` (trigger) and `ensureProfile` (fallback) save it.
+  Members can only write it through the `set_my_unit` RPC (no UPDATE grant).
+  **Self-declared, flagged for review** (user's choice): access is instant;
+  `users.unit_reviewed` is false until an admin clicks "Confirm unit" in the
+  Members tab (`admin_set_unit_reviewed`; the tab badge counts unconfirmed).
+  Existing accounts keep access, have no unit, and get a "Add your unit number"
+  banner. Changing a unit resets it to unconfirmed. Only street-address-free
+  unit # is collected (one building).
+- **Anonymous posting is unchanged**: `user_id` is always stored (RLS and admin
+  tools need it), the UI shows "Anonymous". The landing page says "Members aren't
+  required to post their info" **and** discloses that the admin can tell which
+  account wrote a post — keep that disclosure. **Known limit:** any member can
+  read `user_id` from the API and resolve it through `member_directory`, so
+  anonymity is from casual readers, not from a technical neighbor. Hardening
+  needs author masking via a view/RPC; not built.
+- **Known limit:** the `community-files` bucket is public. Attachment URLs
+  (`<uid>/<id>/<name>`) aren't discoverable without the gated `files` rows, but
+  anyone holding a URL can fetch it. Private bucket + signed URLs not built.
+- **Frontend.** `MainBoard` derives `activeBoard` from the route (`/board` =
+  general, `/members` = members, `/new/<board>`, a thread = its own `board`).
+  `TopBar` has the General/Members tabs; guests on Members screens, deep links to
+  a members thread, and `/archives` get a "This is for members" gate. Signed-in
+  landing now redirects to `/members`. The post category formerly named
+  "General" is relabeled **"Everyday Talk"** (id still `general`) so it doesn't
+  read as the General *board*.
 
 ## Database (Supabase) — additive migrations already applied
 

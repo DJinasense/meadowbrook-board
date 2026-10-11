@@ -109,7 +109,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
     setLoadingMembers(true);
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, email, apartment, is_admin, is_muted, is_suspended, notify_announcements, created_at')
+      .select('id, username, email, apartment, unit_reviewed, is_admin, is_muted, is_suspended, notify_announcements, created_at')
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     setMembers(data || []);
@@ -347,7 +347,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
         <div className="flex items-center gap-1 mb-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
           {tabButton('reports', 'Reports', pending.length)}
           {tabButton('notices', 'Notices', urgentToReview.length)}
-          {tabButton('members', `Members (${members.length})`, 0)}
+          {tabButton('members', `Members (${members.length})`, members.filter((m) => !m.unit_reviewed).length)}
           {tabButton('posts', `Posts (${posts.length})`, 0)}
           {tabButton('feedback', `Feedback (${feedback.length})`, 0)}
         </div>
@@ -476,7 +476,12 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs text-slate-600 dark:text-slate-300">{m.apartment || 'No apartment'}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-end gap-1.5">
+                          {m.apartment || 'No unit yet'}
+                          {m.unit_reviewed
+                            ? <span className="font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">Confirmed</span>
+                            : <span className="font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Unconfirmed</span>}
+                        </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">Joined {new Date(m.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>
@@ -494,6 +499,11 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                         </div>
                       ) : (
                         <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          {!m.unit_reviewed && m.apartment && (
+                            <button disabled={busyMemberId === m.id} onClick={() => runMemberAction(m, 'admin_set_unit_reviewed', { target: m.id, reviewed: true })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                              Confirm unit
+                            </button>
+                          )}
                           <button disabled={busyMemberId === m.id} onClick={() => runMemberAction(m, 'admin_set_muted', { target: m.id, muted: !m.is_muted })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50">
                             {m.is_muted ? 'Unmute' : 'Mute'}
                           </button>

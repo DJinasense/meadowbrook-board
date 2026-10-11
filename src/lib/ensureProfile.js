@@ -23,11 +23,17 @@ export async function ensureProfile(authUser, preferredName) {
   if (existing) return { profile: existing };
 
   const base = (preferredName || authUser.user_metadata?.username || authUser.email.split('@')[0]).trim();
+  // The unit picked at signup rides along in the auth metadata; users INSERT is
+  // column-granted to id/email/username, so it's saved with set_my_unit after.
+  const unit = authUser.user_metadata?.unit;
 
   for (let attempt = 0; attempt < 4; attempt++) {
     const username = attempt === 0 ? base : `${base}${Math.floor(100 + Math.random() * 900)}`;
     const { error } = await supabase.from('users').insert({ id: authUser.id, email: authUser.email, username });
-    if (!error) return { profile: await fetchProfile(authUser.id) };
+    if (!error) {
+      if (unit) await supabase.rpc('set_my_unit', { p_unit: unit });
+      return { profile: await fetchProfile(authUser.id) };
+    }
 
     const usernameTaken = error.code === '23505' && error.message.includes('username');
     if (usernameTaken && !preferredName) continue;

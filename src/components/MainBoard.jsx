@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { FLAGS, FLAG_ORDER, FlagIcon } from './PostFlag';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart, Globe, Users, Archive } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { validateFiles, uploadAttachments, fetchAttachments } from '../lib/attachments';
 import { ARCHIVE_FOLDER_ORDER, ARCHIVE_FOLDERS } from '../lib/archiveFolders';
+import { UNIT_FLOORS } from '../lib/units';
 import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
 import { FilePicker, AttachmentList, AttachmentThumbs } from './Attachments';
 import Lightbox from './Lightbox';
@@ -49,6 +50,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const [loadingBoard, setLoadingBoard] = useState(true);
   const [toast, setToast] = useState(null);
+  const [unitDraft, setUnitDraft] = useState('');
+  const [unitError, setUnitError] = useState(null);
+  const [savingUnit, setSavingUnit] = useState(false);
 
   const [threads, setThreads] = useState([]);
 
@@ -85,7 +89,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const categories = [
     { id: 'all', name: 'All Posts', color: 'bg-slate-500' },
-    { id: 'general', name: 'General', color: 'bg-blue-600' },
+    { id: 'general', name: 'Everyday Talk', color: 'bg-blue-600' },
     { id: 'building', name: 'Building Matters', color: 'bg-amber-600' },
     { id: 'complaints', name: 'Complaints & Concerns', color: 'bg-rose-600' },
     { id: 'board', name: 'Board & Management', color: 'bg-purple-600' },
@@ -106,7 +110,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   // replaceRoute, not navigate: Back shouldn't return to a screen never shown.
   useEffect(() => {
     if (!authLoading && !initialRouteDecided) {
-      if (currentUser && route.view === 'landing') replaceRoute('board');
+      if (currentUser && route.view === 'landing') replaceRoute('members');
       setInitialRouteDecided(true);
     }
   }, [authLoading, currentUser, initialRouteDecided, route.view]);
@@ -126,7 +130,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, user_id, guest_name, title, content, category, is_anonymous, alert_type, created_at')
+      .select('id, user_id, guest_name, title, content, category, board, is_anonymous, alert_type, created_at')
       .eq('status', 'visible')
       .order('created_at', { ascending: false });
 
@@ -239,6 +243,17 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const openThread = threads.find((t) => t.id === selectedThreadId) || null;
 
+  // Which board the screen is about. The list screens say so in the URL
+  // (/board = General, /members = Members); a thread belongs to whichever board
+  // it was posted on; /new/<board> says where the new post is going.
+  const activeBoard =
+    route.view === 'members' ? 'members'
+    : route.view === 'create' ? (route.id === 'members' ? 'members' : 'general')
+    : route.view === 'thread' ? (openThread?.board || 'general')
+    : 'general';
+  const boardHome = activeBoard === 'members' ? 'members' : 'board';
+  const membersLocked = activeBoard === 'members' && !currentUser;
+
   function resetEditing() {
     setEditingThread(null);
     setEditingReplyId(null);
@@ -266,7 +281,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   function backToBoard() {
-    goBack('board');
+    goBack(boardHome);
+  }
+
+  async function handleSaveUnit() {
+    if (!unitDraft) { setUnitError('Please choose your unit'); return; }
+    setSavingUnit(true);
+    setUnitError(null);
+    const { error } = await supabase.rpc('set_my_unit', { p_unit: unitDraft });
+    setSavingUnit(false);
+    if (error) { setUnitError(error.message); return; }
+    await refreshCurrentUser();
+    showToast('Thanks — your unit is saved');
   }
 
   // ---------- mutations ----------
@@ -275,6 +301,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     if (currentUser?.is_muted) { setThreadFormError(MUTED_NOTICE); return; }
     if (!newThread.title || !newThread.content) {
       setThreadFormError('Please fill in a title and message');
+      return;
+    }
+    if (activeBoard === 'members' && !currentUser) { setShowSignupPrompt(true); return; }
+    if (newThread.category === 'archives' && activeBoard !== 'members') {
+      setThreadFormError('Archives can only be filed on the Members board');
       return;
     }
     if (newThread.category === 'archives' && (!newThread.archiveFolder || !newThread.docDate)) {
@@ -292,6 +323,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           title: newThread.title,
           content: newThread.content,
           category: newThread.category,
+          board: activeBoard,
           is_anonymous: newThread.isAnonymous,
           alert_type: newThread.alertType,
           archive_folder: newThread.category === 'archives' ? newThread.archiveFolder : null,
@@ -303,6 +335,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           title: newThread.title,
           content: newThread.content,
           category: newThread.category,
+          board: 'general',
           is_anonymous: true,
         };
 
@@ -318,7 +351,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     setNewThreadFiles([]);
     setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
-    goBack('board');
+    goBack(boardHome);
     loadBoard();
   }
 
@@ -528,6 +561,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   const filteredThreads = threads
+    .filter((t) => t.board === activeBoard)
     .filter((t) => t.category !== 'archives') // archives live on their own page, see Archives.jsx
     .filter((t) => filter === 'all' || t.category === filter)
     .filter((t) =>
@@ -598,7 +632,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </div>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">This one needs an account</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
-          A member account lets you reply to posts, like posts, attach photos and PDFs, send private messages to neighbors, and edit or delete your own posts.
+          A member account unlocks the Members board, Archives, replies, likes, photo and PDF uploads, private messages, and editing or deleting your own posts. You can still post anonymously.
         </p>
         <button
           onClick={() => { setShowSignupPrompt(false); if (onRequestSignup) onRequestSignup(); }}
@@ -717,6 +751,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           onChange={(e) => setSettingsForm({ ...settingsForm, username: e.target.value })}
           className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm mb-4 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+
+        {currentUser.apartment && (
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 -mt-2">Your unit: {currentUser.apartment}</p>
+        )}
 
         <div className="space-y-3 mb-4">
           <label className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
@@ -901,6 +939,50 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         </div>
       </div>
     </header>
+    <nav className="bg-white/60 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700" aria-label="Boards">
+      <div className="max-w-5xl mx-auto px-4 flex gap-1">
+        {[
+          { id: 'general', view: 'board', label: 'General Board', Icon: Globe },
+          { id: 'members', view: 'members', label: 'Members Board', Icon: currentUser ? Users : Lock },
+        ].map(({ id, view, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => { if (activeBoard !== id || currentView === 'thread' || currentView === 'create') navigate(view); }}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              activeBoard === id
+                ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </div>
+    </nav>
+    {currentUser && !currentUser.apartment && !currentUser.is_suspended && (
+      <div className="bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-sm">
+        <div className="max-w-5xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-2">
+          <span>Add your unit number to finish setting up your account. Only the board admin sees it.</span>
+          <select
+            value={unitDraft}
+            onChange={(e) => setUnitDraft(e.target.value)}
+            aria-label="Your unit number"
+            className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+          >
+            <option value="">Choose unit…</option>
+            {UNIT_FLOORS.map(({ floor, units }) => (
+              <optgroup key={floor} label={`Floor ${floor}`}>
+                {units.map((u) => <option key={u} value={u}>{u}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <button onClick={handleSaveUnit} disabled={savingUnit} className="font-semibold bg-blue-700 text-white px-3 py-1.5 rounded-lg hover:bg-blue-800 disabled:opacity-50">
+            {savingUnit ? 'Saving…' : 'Save'}
+          </button>
+          {unitError && <span className="text-red-600 dark:text-red-400">{unitError}</span>}
+        </div>
+      </div>
+    )}
     {currentUser?.is_suspended && (
       <div className="bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm">
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -940,50 +1022,99 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">A neighbor-run community board — finally here.</p>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">A neighbor-run community board. Your building. Your voice.</p>
 
-            <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6 mb-6 text-left">
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                A place to swap ideas, ask questions, and raise concerns with the people who live here.
-                Anyone can read the board and start a thread — no account required.
-              </p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">With a verified member account, you can:</p>
-              <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
-                <li className="flex gap-2"><MessageSquare className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Reply to posts and join the conversation</li>
-                <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Attach photos and PDFs — notices, letters, or a photo of that leaky pipe</li>
-                <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Send private messages to other members</li>
-                <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Edit or delete your own posts</li>
-                <li className="flex gap-2"><ThumbsUp className="w-4 h-4 mt-0.5 text-blue-700 dark:text-blue-400 shrink-0" /> Like posts you agree with</li>
-              </ul>
-              <p className="text-sm text-slate-400 dark:text-slate-500 mt-3 italic">
-                Your building. Your voice.
-              </p>
+            <div className="space-y-4 mb-6 text-left">
+              <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Globe className="w-5 h-5 text-blue-700 dark:text-blue-400" />
+                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">General Board</h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                  Open to everyone. Read the conversation and start a thread. No account needed.
+                </p>
+                <button
+                  onClick={() => navigate('board')}
+                  className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-md shadow-blue-100 dark:shadow-none"
+                >
+                  Enter the General Board
+                </button>
+              </div>
+
+              <div className="bg-white/90 dark:bg-slate-800/90 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
+                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Members Board</h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
+                  For registered Building 7 residents. Sign up with your unit number to get in.
+                </p>
+                <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5 mb-3">
+                  <li className="flex gap-2"><Archive className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Archives: board minutes, budgets, and letters</li>
+                  <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Upload photos, PDFs, and documents</li>
+                  <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Private messages to other members</li>
+                  <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Edit or delete your own posts</li>
+                </ul>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/60 rounded-lg px-3 py-2 mb-1">
+                  Members aren't required to post their info.
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                  Post under your name, or anonymously. Neighbors won't see your name or unit. For safety, the board admin can still tell which account wrote a post.
+                </p>
+                {currentUser ? (
+                  <button
+                    onClick={() => navigate('members')}
+                    className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
+                  >
+                    Enter the Members Board
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { if (onRequestSignup) onRequestSignup(); }}
+                      className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" /> Sign up
+                    </button>
+                    <button
+                      onClick={() => { if (onRequestLogin) onRequestLogin(); }}
+                      className="flex-1 flex items-center justify-center gap-2 border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 py-3 rounded-xl font-semibold hover:bg-emerald-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <LogIn className="w-4 h-4" /> Log in
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <button
-              onClick={() => navigate('board')}
-              className="w-full bg-blue-700 text-white py-3.5 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-md shadow-blue-100 dark:shadow-none mb-3"
-            >
-              Browse the Board
-            </button>
+            <p className="text-xs text-slate-300 dark:text-slate-600 mt-8">Building 7 · If you see something, say something</p>
+          </div>
+        </div>
+      </PageBG>
+    );
+  }
 
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={() => { if (onRequestSignup) onRequestSignup(); }}
-                className="flex items-center justify-center gap-2 text-sm text-emerald-700 dark:text-emerald-400 font-medium py-2 hover:text-emerald-800 dark:hover:text-emerald-300"
-              >
-                <UserPlus className="w-4 h-4" /> New here? Create an account
-              </button>
-              <span className="text-slate-300 dark:text-slate-600">·</span>
-              <button
-                onClick={() => { if (onRequestLogin) onRequestLogin(); }}
-                className="flex items-center justify-center gap-2 text-sm text-blue-700 dark:text-blue-400 font-medium py-2 hover:text-blue-800 dark:hover:text-blue-300"
-              >
-                <LogIn className="w-4 h-4" /> Already have an account? Log in
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300 dark:text-slate-600 mt-8">Building 7 unit owners only · If you see something, say something</p>
+  // Guests can't read the Members board (RLS enforces it too; this is the
+  // friendly screen). Also catches a shared /thread/<id> link to a members-only
+  // post, which a guest can't load at all.
+  if ((membersLocked && (currentView === 'members' || currentView === 'create')) || (currentView === 'thread' && !openThread && !loadingBoard && !currentUser)) {
+    return (
+      <PageBG>
+        {TopBar()}
+        {Overlays()}
+        <div className="max-w-md mx-auto p-6 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/40 mb-4">
+            <Lock className="w-7 h-7 text-emerald-700 dark:text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">This is for members</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
+            The Members board, Archives, and private messages are for registered Building 7 residents.
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Members aren't required to post their name or unit.</p>
+          <div className="space-y-2">
+            <button onClick={() => { if (onRequestSignup) onRequestSignup(); }} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700">Create an account</button>
+            <button onClick={() => { if (onRequestLogin) onRequestLogin(); }} className="w-full border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 py-3 rounded-xl font-semibold hover:bg-emerald-50 dark:hover:bg-slate-700">Log in</button>
+            <button onClick={() => navigate('board')} className="w-full text-slate-500 dark:text-slate-400 py-2 text-sm hover:text-slate-700 dark:hover:text-slate-200">Go to the General Board</button>
           </div>
         </div>
       </PageBG>
@@ -997,7 +1128,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         {Overlays()}
         <div className="max-w-3xl mx-auto p-4">
           <button onClick={backToBoard} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-4 text-sm">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to board
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to the {activeBoard === 'members' ? 'Members' : 'General'} board
           </button>
 
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
@@ -1205,10 +1336,15 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         {Overlays()}
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-            <button onClick={() => goBack('board')} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-5 text-sm">
+            <button onClick={() => goBack(boardHome)} className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-5 text-sm">
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-5">Start a New Thread</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Start a New Thread</h2>
+            <p className={`text-xs font-medium mb-5 flex items-center gap-1.5 ${activeBoard === 'members' ? 'text-emerald-700 dark:text-emerald-400' : 'text-blue-700 dark:text-blue-400'}`}>
+              {activeBoard === 'members'
+                ? <><Users className="w-3.5 h-3.5" /> Posting to the Members board. Only members can read this.</>
+                : <><Globe className="w-3.5 h-3.5" /> Posting to the General board. Anyone can read this.</>}
+            </p>
             {currentUser?.is_muted && (
               <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-5">
                 {MUTED_NOTICE}
@@ -1246,7 +1382,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   onChange={(e) => setNewThread({ ...newThread, category: e.target.value })}
                   className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  {categories.filter((c) => c.id !== 'all' && (c.id !== 'archives' || currentUser)).map((cat) => (
+                  {categories.filter((c) => c.id !== 'all' && (c.id !== 'archives' || (currentUser && activeBoard === 'members'))).map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
@@ -1294,7 +1430,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 {currentUser ? (
                   <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
                     <input type="checkbox" checked={newThread.isAnonymous} onChange={(e) => setNewThread({ ...newThread, isAnonymous: e.target.checked })} className="mr-2" />
-                    Post anonymously
+                    <span>
+                      Post anonymously
+                      <span className="block text-xs text-slate-400 dark:text-slate-500">Neighbors won't see your name or unit.</span>
+                    </span>
                   </label>
                 ) : (
                   <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
@@ -1352,10 +1491,19 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       {Overlays()}
 
       <div className="max-w-5xl mx-auto p-4">
-        <div className="bg-gradient-to-r from-blue-700 to-blue-600 dark:from-blue-800 dark:to-blue-900 rounded-xl p-5 mb-5 text-white relative overflow-hidden">
+        <div className={`${activeBoard === 'members' ? 'from-emerald-700 to-emerald-600 dark:from-emerald-800 dark:to-emerald-900' : 'from-blue-700 to-blue-600 dark:from-blue-800 dark:to-blue-900'} bg-gradient-to-r rounded-xl p-5 mb-5 text-white relative overflow-hidden`}>
           <Leaf className="w-24 h-24 absolute -right-4 -bottom-6 text-emerald-400/20 rotate-12" />
-          <h2 className="text-lg font-bold mb-1 relative">Welcome to the neighborhood</h2>
-          <p className="text-sm text-blue-100 relative">Browse and post freely — no account needed. A member account lets you reply, attach photos & PDFs, message neighbors privately, and edit your own posts.</p>
+          {activeBoard === 'members' ? (
+            <>
+              <h2 className="text-lg font-bold mb-1 relative">Members Board</h2>
+              <p className="text-sm text-emerald-50 relative">Building 7 residents only. Post under your name or anonymously. You don't have to share your name or unit.</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold mb-1 relative">General Board</h2>
+              <p className="text-sm text-blue-100 relative">Open to everyone. Browse and post, no account needed.{!currentUser && ' Residents can create an account to use the Members board, Archives, and private messages.'}</p>
+            </>
+          )}
         </div>
 
         {/* A thread started and then left behind is still sitting in memory.
@@ -1363,7 +1511,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             assume it's gone. */}
         {hasUnsavedPost && (
           <button
-            onClick={() => navigate('create')}
+            onClick={() => navigate('create', activeBoard)}
             className="w-full flex items-center gap-2 text-left text-sm text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 mb-4 hover:bg-amber-100 dark:hover:bg-amber-900/50"
           >
             <Pencil className="w-4 h-4 shrink-0" />
@@ -1388,7 +1536,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Browse by category</span>
           <button
-            onClick={() => navigate('create')}
+            onClick={() => navigate('create', activeBoard)}
             className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
           >
             <Plus className="w-4 h-4" /> New Thread
@@ -1408,7 +1556,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               {cat.name}
             </button>
           ))}
-          {onOpenArchives && (
+          {onOpenArchives && activeBoard === 'members' && (
             <button
               onClick={onOpenArchives}
               className="px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors bg-teal-600/90 text-white hover:bg-teal-700"
