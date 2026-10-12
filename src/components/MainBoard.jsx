@@ -248,10 +248,18 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   // it was posted on; /new/<board> says where the new post is going.
   const activeBoard =
     route.view === 'members' ? 'members'
-    : route.view === 'create' ? (route.id === 'members' ? 'members' : 'general')
+    : route.view === 'create' ? (route.id === 'members' || route.id === 'archives' ? 'members' : 'general')
     : route.view === 'thread' ? (openThread?.board || 'general')
     : 'general';
   const boardHome = activeBoard === 'members' ? 'members' : 'board';
+
+  // "File a document" on the Archives page opens /new/archives: the Members
+  // board, with the Archives category (and its folder + date fields) preselected.
+  useEffect(() => {
+    if (route.view === 'create' && route.id === 'archives') {
+      setNewThread((t) => (t.category === 'archives' ? t : { ...t, category: 'archives' }));
+    }
+  }, [route.view, route.id]);
   const membersLocked = activeBoard === 'members' && !currentUser;
 
   function resetEditing() {
