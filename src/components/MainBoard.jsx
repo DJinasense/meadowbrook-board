@@ -1059,7 +1059,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   Members aren't required to post their info.
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                  Post under your name, or anonymously. Neighbors won't see your name or unit. For safety, the board admin can still tell which account wrote a post.
+                  Post under your name, or anonymously. Neighbors won't see your name or unit.
                 </p>
                 {currentUser ? (
                   <button

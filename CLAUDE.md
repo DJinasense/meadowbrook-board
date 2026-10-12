@@ -319,8 +319,9 @@ has never touched the real project, so run its VERIFY queries afterwards.)
   unit # is collected (one building).
 - **Anonymous posting is unchanged**: `user_id` is always stored (RLS and admin
   tools need it), the UI shows "Anonymous". The landing page says "Members aren't
-  required to post their info" **and** discloses that the admin can tell which
-  account wrote a post — keep that disclosure. **Known limit:** any member can
+  required to post their info". It briefly also disclosed that the admin can tell
+  which account wrote a post; the user removed that line on 2026-10-12 as
+  excessive (their call; the admin still can tell). **Known limit:** any member can
   read `user_id` from the API and resolve it through `member_directory`, so
   anonymity is from casual readers, not from a technical neighbor. Hardening
   needs author masking via a view/RPC; not built.
