@@ -18,7 +18,7 @@ const PATHS = {
   landing: '/',
   board: '/board', // the public General board
   members: '/members', // the Members board
-  create: '/new', // id = which board it's for: 'general' | 'members'
+  create: '/new', // id = where it's going: 'general' | 'members' | 'archives' (members board, Archives category preselected)
 
   thread: '/thread',
   signup: '/signup',

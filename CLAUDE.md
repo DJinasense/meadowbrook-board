@@ -117,7 +117,7 @@ react-router** — this is deliberate, and it keeps the "one string per screen"
 model the components already used.
 
 - `PATHS` maps a view name to a URL: `/`, `/board` (General board), `/members`
-  (Members board), `/thread/<id>`, `/new/<board>` (`general` | `members`),
+  (Members board), `/thread/<id>`, `/new/<board>` (`general` | `members` | `archives`),
   `/login`, `/signup`, `/reset-password`, `/admin`, `/messages/<id>`,
   `/welcome`. Adding a screen means adding a line there.
 - Only `App.jsx` (which screen to render) and `MainBoard.jsx`
