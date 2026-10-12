@@ -16,8 +16,10 @@ import { useEffect, useRef, useState } from 'react';
 // view -> URL path. 'thread' and 'messages' get an id appended.
 const PATHS = {
   landing: '/',
-  board: '/board',
-  create: '/new',
+  board: '/board', // the public General board
+  members: '/members', // the Members board
+  create: '/new', // id = which board it's for: 'general' | 'members'
+
   thread: '/thread',
   signup: '/signup',
   login: '/login',

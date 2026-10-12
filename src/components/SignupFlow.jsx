@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, User, Lock, CheckCircle, XCircle, Sun, Moon, MailCheck, RefreshCw } from 'lucide-react';
+import { Mail, User, Lock, CheckCircle, XCircle, Sun, Moon, MailCheck, RefreshCw, Home } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { ensureProfile } from '../lib/ensureProfile';
 import { CONFIRM_REDIRECT, friendlyResendError } from '../lib/authEmail';
+import { UNIT_FLOORS, isValidUnit } from '../lib/units';
 
 export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLogin, theme, onToggleTheme, initialStep = 'landing' }) {
   const [step, setStep] = useState(initialStep); // landing | signup | check-email | success
-  const [form, setForm] = useState({ email: '', username: '', password: '' });
+  const [form, setForm] = useState({ email: '', username: '', unit: '', password: '' });
   const [submitting, setSubmitting] = useState(false);
   const [signupError, setSignupError] = useState(null);
   const [resendState, setResendState] = useState(null); // null | 'sending' | 'sent' | error message
@@ -36,6 +37,10 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
       setSignupError('Please fill in all fields');
       return;
     }
+    if (!isValidUnit(form.unit)) {
+      setSignupError('Please choose your unit number');
+      return;
+    }
 
     setSubmitting(true);
     setSignupError(null);
@@ -54,7 +59,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
     let { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password: form.password,
-      options: { data: { username }, emailRedirectTo: CONFIRM_REDIRECT },
+      options: { data: { username, unit: form.unit }, emailRedirectTo: CONFIRM_REDIRECT },
     });
 
     // Email already has a login (e.g. an earlier signup that didn't finish).
@@ -92,7 +97,12 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
       return;
     }
 
-    const { error: profileError } = await ensureProfile(authData.user, username);
+    // authData.user.user_metadata.unit is what ensureProfile saves; an existing
+    // login that was signed in above may not carry it, so make sure it does.
+    const { error: profileError } = await ensureProfile(
+      { ...authData.user, user_metadata: { ...authData.user.user_metadata, unit: form.unit } },
+      username,
+    );
 
     if (profileError) {
       setSignupError(profileError.message);
@@ -127,14 +137,14 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
                 <img src="/logo-icon-white.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain hidden dark:block" />
               </div>
               <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">Community Board</h1>
-              <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">Browse freely, or create an account for extra features</p>
+              <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">Read the General board freely, or join to unlock the Members board</p>
             </div>
 
             <button
               onClick={() => { if (onContinueAsGuest) onContinueAsGuest(); }}
               className="w-full border-2 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 py-3 rounded-lg font-medium hover:border-gray-300 dark:hover:border-slate-500 transition-colors mb-3"
             >
-              Continue Browsing Anonymously
+              Browse the General Board
             </button>
 
             <button
@@ -145,7 +155,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </button>
 
             <p className="text-xs text-gray-400 dark:text-slate-500 text-center mt-6">
-              A member account lets you reply, attach photos & PDFs,<br/>message neighbors privately, and edit your own posts.
+              Members get the Members board, Archives, private messages,<br/>file uploads, and control of their own posts.<br/>You never have to show your name or unit on a post.
             </p>
 
             <button
@@ -186,6 +196,28 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
                   placeholder="Display name"
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <div className="relative">
+                  <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500 pointer-events-none" />
+                  <select
+                    value={form.unit}
+                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    aria-label="Your unit number"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Your unit number</option>
+                    {UNIT_FLOORS.map(({ floor, units }) => (
+                      <optgroup key={floor} label={`Floor ${floor}`}>
+                        {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1.5">
+                  Only the board admin sees this. Neighbors never do unless you choose to show it, and you don't have to put your name or unit on any post.
+                </p>
               </div>
 
               <div className="relative">
@@ -288,7 +320,7 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">You're in!</h2>
             <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">
               {initialStep === 'success' ? 'Your email is confirmed. ' : ''}Welcome to the board.<br/>
-              You can now reply, attach photos & PDFs,<br/>and message other members privately.
+              You can now use the Members board, Archives,<br/>private messages, and file uploads.
             </p>
             <button
               onClick={() => { if (onVerified) onVerified(); }}

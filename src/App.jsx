@@ -97,7 +97,7 @@ function App() {
   }
 
   if (route.view === 'archives') {
-    return <Archives onBack={() => goBack('board')} theme={theme} onToggleTheme={toggleTheme} />;
+    return <Archives onBack={() => goBack('members')} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   // landing / board / thread / create are MainBoard's own business; it reads

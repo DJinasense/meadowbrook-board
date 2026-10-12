@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Archive, Search, Plus, FileText, Image as ImageIcon, Download, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Archive, Search, Plus, FileText, Image as ImageIcon, Download, Sun, Moon, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { fetchDirectory } from '../lib/directory';
@@ -119,6 +119,24 @@ export default function Archives({ onBack, theme, onToggleTheme }) {
       <div className="max-w-3xl mx-auto p-4">{children}</div>
     </div>
   );
+
+  // Archives are a member benefit. RLS already returns nothing to a guest;
+  // this is the explanation instead of an empty page.
+  if (!authLoading && !currentUser) {
+    return shell(
+      <div className="text-center py-12">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-teal-100 dark:bg-teal-900/40 mb-4">
+          <Lock className="w-7 h-7 text-teal-700 dark:text-teal-400" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Archives are for members</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Log in or create an account to read board minutes, budgets, and letters.</p>
+        <div className="max-w-xs mx-auto space-y-2">
+          <button onClick={() => navigate('signup')} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700">Create an account</button>
+          <button onClick={() => navigate('login')} className="w-full border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 py-3 rounded-xl font-semibold hover:bg-emerald-50 dark:hover:bg-slate-700">Log in</button>
+        </div>
+      </div>
+    );
+  }
 
   return shell(
     <div>
