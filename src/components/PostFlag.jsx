@@ -10,7 +10,6 @@ export const FLAGS = {
   urgent: {
     label: 'Urgent',
     hint: 'Safety or an emergency: everyone should see this right away',
-    note: 'Urgent posts are emailed to members automatically (those with announcements turned on).',
     Icon: Star,
     filled: true,
     color: 'text-red-600 dark:text-red-400',
