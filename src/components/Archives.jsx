@@ -3,7 +3,7 @@ import { ArrowLeft, Archive, Search, Plus, FileText, Image as ImageIcon, Downloa
 import { supabase } from '../lib/supabaseClient';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { fetchDirectory } from '../lib/directory';
-import { fetchAttachments, downloadUrl, fileKindLabel } from '../lib/attachments';
+import { fetchAttachments, downloadUrl, fileKindLabel, archivePreviewUrl } from '../lib/attachments';
 import { ARCHIVE_FOLDER_ORDER, ARCHIVE_FOLDERS } from '../lib/archiveFolders';
 import { navigate } from '../lib/router';
 
@@ -205,7 +205,18 @@ export default function Archives({ onBack, theme, onToggleTheme }) {
                         onClick={() => navigate('thread', entry.id)}
                         className="w-full text-left flex items-start justify-between gap-3"
                       >
-                        <div className="min-w-0">
+                        {files.length > 0 && (files[0].file_type === 'pdf' || files[0].file_type === 'image') && (
+                          // Small saved preview (see saveArchivePreview). If there isn't one,
+                          // the image hides itself and the file badge still shows.
+                          <img
+                            src={archivePreviewUrl(entry.user_id, entry.id)}
+                            alt=""
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            className="w-14 h-[72px] shrink-0 rounded border border-slate-200 dark:border-slate-600 object-cover object-top bg-slate-50"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
                           <span className="inline-block text-xs font-semibold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/40 rounded px-1.5 py-0.5 mb-1">
                             {ARCHIVE_FOLDERS[entry.archive_folder]?.label || entry.archive_folder}
                           </span>

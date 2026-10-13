@@ -4,7 +4,7 @@ import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Fla
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
-import { validateFiles, uploadAttachments, fetchAttachments } from '../lib/attachments';
+import { validateFiles, uploadAttachments, fetchAttachments, saveArchivePreview } from '../lib/attachments';
 import { ARCHIVE_FOLDER_ORDER, ARCHIVE_FOLDERS } from '../lib/archiveFolders';
 import { UNIT_FLOORS } from '../lib/units';
 import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
@@ -130,7 +130,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, user_id, guest_name, title, content, category, board, is_anonymous, alert_type, created_at')
+      .select('id, user_id, guest_name, title, content, category, board, archive_folder, doc_date, is_anonymous, alert_type, created_at')
       .eq('status', 'visible')
       .order('created_at', { ascending: false });
 
@@ -333,7 +333,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           category: newThread.category,
           board: activeBoard,
           is_anonymous: newThread.isAnonymous,
-          alert_type: newThread.alertType,
+          alert_type: newThread.category === 'archives' ? null : newThread.alertType, // archives are never labeled or emailed
           archive_folder: newThread.category === 'archives' ? newThread.archiveFolder : null,
           doc_date: newThread.category === 'archives' ? newThread.docDate : null,
         }
@@ -349,13 +349,24 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: created, error } = await supabase.from('threads').insert(payload).select('id').single();
 
-    if (error) { setSubmittingThread(false); setThreadFormError(error.message); return; }
+    if (error) {
+      setSubmittingThread(false);
+      // Usually the cap of 2 labeled posts in 24 hours. The database message
+      // is unreadable, so say what to do.
+      setThreadFormError(/row-level security/i.test(error.message)
+        ? "This post was refused. If you've already posted 2 labeled posts in the last 24 hours, choose 'No label' and try again."
+        : error.message);
+      return;
+    }
 
     if (currentUser && newThreadFiles.length) {
       const failed = await uploadAttachments(newThreadFiles, currentUser.id, { threadId: created.id });
       if (failed.length) showToast(`Posted, but these files didn't upload: ${failed.join(', ')}`);
     }
-    if (currentUser && newThread.alertType === 'urgent') sendUrgentEmail(created.id);
+    if (currentUser && newThreadFiles.length && newThread.category === 'archives') {
+      await saveArchivePreview(newThreadFiles[0], currentUser.id, created.id);
+    }
+    if (currentUser && payload.alert_type === 'urgent') sendUrgentEmail(created.id);
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
@@ -593,7 +604,6 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   const filteredThreads = threads
     .filter((t) => t.board === activeBoard)
-    .filter((t) => t.category !== 'archives') // archives live on their own page, see Archives.jsx
     .filter((t) => filter === 'all' || t.category === filter)
     .filter((t) =>
       searchQuery === '' ||
@@ -1410,7 +1420,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Category</label>
                 <select
                   value={newThread.category}
-                  onChange={(e) => setNewThread({ ...newThread, category: e.target.value })}
+                  onChange={(e) => setNewThread({ ...newThread, category: e.target.value, ...(e.target.value === 'archives' ? { alertType: null } : {}) })}
                   className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {categories.filter((c) => c.id !== 'all' && (c.id !== 'archives' || (currentUser && activeBoard === 'members'))).map((cat) => (
@@ -1473,7 +1483,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 )}
               </div>
 
-              {currentUser && (
+              {currentUser && newThread.category !== 'archives' && (
                 <fieldset>
                   <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Add a label to this post (optional)</legend>
                   <div className="space-y-2">
@@ -1616,7 +1626,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 {/* Photos and documents both get a preview here, so a notice
                     can be looked at (full size, with a download) without
                     opening the thread first. */}
-                <AttachmentThumbs files={thread.attachments} onOpen={openLightbox} />
+                {thread.category === 'archives' ? (
+                  <p className="text-sm text-teal-700 dark:text-teal-400 mb-3 flex items-center gap-1.5">
+                    <Archive className="w-4 h-4 shrink-0" />
+                    Archived document · {ARCHIVE_FOLDERS[thread.archive_folder]?.label}
+                    {thread.doc_date && ` · ${new Date(`${thread.doc_date}T00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`}
+                    {` · ${thread.attachments.length} ${thread.attachments.length === 1 ? 'file' : 'files'} — tap to view`}
+                  </p>
+                ) : (
+                  <AttachmentThumbs files={thread.attachments} onOpen={openLightbox} />
+                )}
                 <div className="flex items-center text-xs text-slate-400 dark:text-slate-500 gap-4">
                   {thread.alert_type && <FlagIcon type={thread.alert_type} className="-mr-2" />}
                   <span className="font-medium text-slate-600 dark:text-slate-300">{thread.authorLabel}</span>
