@@ -1,11 +1,10 @@
-// Vercel serverless function: emails an URGENT post to every member who opted in
-// under Settings -> "Notify me with important announcements".
+// Vercel serverless function: emails a Members-board post to every member who
+// opted in under Settings -> "Notify me with important announcements".
 //
-// It runs automatically when a member posts something labeled Urgent (the
-// browser calls it right after the post is saved). Only Urgent is ever emailed;
-// "Building work" and "Heads up" are labels on the board and nothing more.
-// An admin can also call it from Admin Dashboard -> Notices to retry an urgent
-// post whose email didn't go out.
+// It runs only when the poster ticked "Email this to members" on the new-post
+// form (the browser calls it right after the post is saved). A label such as
+// Urgent is a visual flag and never sends email by itself. General-board posts
+// are never emailed.
 //
 // Why a server function: it needs the Resend key and members' email addresses,
 // neither of which may reach the browser.
@@ -56,9 +55,9 @@ async function db(path, { method = 'GET', body, returning = false } = {}) {
 function buildEmail(post) {
   const link = `${SITE_URL}/thread/${post.id}`;
   const preview = excerpt(post.content);
-  const subject = `Urgent: ${post.title}`;
+  const subject = `MeadowBrook notice: ${post.title}`;
   const text = [
-    'MeadowBrook Building 7 — urgent notice',
+    'MeadowBrook Building 7 — notice from the Members board',
     '',
     post.title,
     '',
@@ -70,7 +69,7 @@ function buildEmail(post) {
     'To stop these emails, log in, open Settings, and uncheck that box.',
   ].join('\n');
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1e293b">
-  <p style="color:#b91c1c;font-weight:bold;margin:0 0 4px">&#9733; Urgent notice &middot; MeadowBrook Building 7</p>
+  <p style="color:#1d4ed8;font-weight:bold;margin:0 0 4px">Notice from the Members board &middot; MeadowBrook Building 7</p>
   <h2 style="margin:0 0 12px">${escapeHtml(post.title)}</h2>
   <p style="white-space:pre-line;line-height:1.5;margin:0 0 16px">${escapeHtml(preview)}</p>
   <p style="margin:0 0 24px"><a href="${link}" style="background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Read it on the board</a></p>
@@ -101,17 +100,17 @@ export default async function handler(req, res) {
   if (!me) return res.status(403).json({ error: 'No member account found for this login.' });
   if (!me.is_admin && (me.is_muted || me.is_suspended)) return res.status(403).json({ error: 'Posting is paused on this account.' });
 
-  // 2. Claim the post. One atomic update: only an urgent, live, not-yet-emailed
+  // 2. Claim the post. One atomic update: only a live, not-yet-emailed Members
   //    post matches, and a non-admin only matches their own. That blocks double
   //    sends and anyone emailing a post that isn't theirs.
   const authorFilter = me.is_admin ? '' : `&user_id=eq.${caller.id}`;
   const claim = await db(
-    `threads?id=eq.${threadId}&alert_type=eq.urgent&announced_at=is.null&status=eq.visible${authorFilter}&select=id,title,content`,
+    `threads?id=eq.${threadId}&board=eq.members&announced_at=is.null&status=eq.visible${authorFilter}&select=id,title,content`,
     { method: 'PATCH', body: { announced_at: new Date().toISOString() }, returning: true },
   );
   if (!claim.ok) return res.status(502).json({ error: 'Could not check the post. Please try again.' });
   const post = Array.isArray(claim.data) ? claim.data[0] : null;
-  if (!post) return res.status(409).json({ error: 'That post was already emailed, is not an urgent post of yours, or is no longer live.' });
+  if (!post) return res.status(409).json({ error: 'That post was already emailed, is not a Members post of yours, or is no longer live.' });
 
   const release = () => db(`threads?id=eq.${threadId}`, { method: 'PATCH', body: { announced_at: null } }).catch(() => {});
 

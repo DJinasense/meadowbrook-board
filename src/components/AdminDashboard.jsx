@@ -254,7 +254,8 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
 
   // Urgent posts email themselves when posted. One lands here only if that email
   // didn't go out (sending not set up, or the email service refused it).
-  const urgentToReview = posts.filter((p) => p.alert_type === 'urgent' && !p.announced_at && p.status === 'visible');
+  // Emails are sent by the poster's checkbox now, so nothing waits for review.
+  const urgentToReview = [];
 
   // Accounts per chosen unit, so a unit with several signups stands out.
   const unitCounts = members.reduce((acc, m) => { if (m.apartment) acc[m.apartment] = (acc[m.apartment] || 0) + 1; return acc; }, {});
@@ -363,11 +364,10 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
         {tab === 'notices' && (
           <div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Urgent posts are emailed automatically the moment they're posted, to the{' '}
+              Members email a Members-board post only when the poster ticks "Email this to members." It goes to the{' '}
               <strong className="text-slate-700 dark:text-slate-200">{subscriberCount ?? '…'}</strong>{' '}
-              {subscriberCount === 1 ? 'neighbor' : 'neighbors'} who chose "Notify me with important announcements."
-              Building work and Heads up are labels only and are never emailed.
-              A post only shows up below if its email didn't go out, for example if email sending isn't set up yet. You can send it from here.
+              {subscriberCount === 1 ? 'neighbor' : 'neighbors'} who chose "Notify me with important announcements." Urgent is only a flag.
+              Emails already sent are listed below.
             </p>
             {urgentNotice && <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">{urgentNotice}</p>}
             {urgentError && <p className="text-sm text-red-500 dark:text-red-400 mb-3">{urgentError}</p>}

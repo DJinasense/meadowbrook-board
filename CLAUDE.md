@@ -189,20 +189,20 @@ What they do:
   column is user-updatable (threads UPDATE is column-granted); only admin RPCs
   change them. **threads INSERT is table-wide for anon/authenticated, so any
   new threads column is insertable by guests unless the policy says otherwise.**
-- **Only Urgent is emailed, automatically (changed 2026-10-13).** The user does
-  not want to read every urgent post first. When a member posts with the Urgent
-  label, `MainBoard.sendUrgentEmail` calls `/api/send-announcement` right after
-  the insert (the post is already saved; a failure never loses it, the poster
-  gets a toast and the admin sees it in Notices). **Building work and Heads up
-  are labels only and are never emailed.** The form says so under Urgent
-  (`FLAGS.urgent.note` in `PostFlag.jsx`). Recipients are members with
-  `notify_announcements` on and not suspended, minus the poster. That column
-  **defaults to false and nothing asks at signup, so until members tick the
-  box or the default changes, few or no one receives anything** (open question
-  for the user: default it on for new signups).
-- **Admin screen.** Admin Dashboard -> Notices tab now lists only Urgent posts
-  whose email did NOT go out (red badge / red dot on the account menu count the
-  same thing), with "Email to subscribers" as the retry, "Remove label", or
+- **Email is per post, by checkbox (changed 2026-10-13).** The owner replaced
+  automatic Urgent emails with a visual flag. A member can tick **"Email this
+  to members"** on the new-post form. It shows only on the Members board
+  (including Archives filings), never on General, and the post is emailed only
+  when ticked. `MainBoard.emailMembers` calls `/api/send-announcement` right
+  after the insert (the post is already saved; a failure never loses it, the
+  poster gets a toast). Urgent, Building work and Heads up are labels only and
+  never send email. Recipients are members with `notify_announcements` on and
+  not suspended, poster included. That column **defaults to false and nothing
+  asks at signup, so until members tick the box or the default changes, few or
+  no one receives anything** (open question for the owner: default it on).
+- **Admin screen.** Admin Dashboard -> Notices tab no longer runs a review
+  queue (`urgentToReview` is empty; the red dot is gone). Its copy describes the
+  checkbox model. "Already emailed" lists sent posts. Remove label, or
   Remove. Emailed ones are under "Already emailed". The old per-post review
   step is gone.
 - **Sending.** `api/send-announcement.js` (Vercel function; `vercel.json`
@@ -431,7 +431,7 @@ verified with 24 scripted permission checks + UI walkthrough) adds:
 - Replies are members-only (guests see a sign-up prompt; RLS enforces it).
 - Reply/digest notifications are NOT implemented (the notify_* columns exist but
   nothing sends email) — don't advertise them in copy. The only email feature is
-  the admin-sent urgent announcement (see the section above).
+  the checkbox-triggered member email (see the section above).
 
 `supabase_open_signup.sql` is a second, separate file (added when invite
 codes were parked, see Signup section below) — unlike `supabase_additions.sql`

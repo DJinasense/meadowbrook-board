@@ -43,7 +43,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [settingsSubmitting, setSettingsSubmitting] = useState(false);
   const [settingsStep, setSettingsStep] = useState('main'); // 'main' | 'suspend'
   const [suspendFeedback, setSuspendFeedback] = useState('');
-  const [urgentPending, setUrgentPending] = useState(0); // admins: labeled posts not yet reviewed
+  const urgentPending = 0; // no review queue any more: urgent is a visual flag, email is per post
   const [openReplies, setOpenReplies] = useState([]);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +57,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   const [threads, setThreads] = useState([]);
 
   const [guestName, setGuestName] = useState('');
-  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
+  const [newThread, setNewThread] = useState({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, emailMembers: false, archiveFolder: null, docDate: '' });
   const [newReply, setNewReply] = useState({ content: '', isAnonymous: false });
   const [threadFormError, setThreadFormError] = useState(null);
   const [replyFormError, setReplyFormError] = useState(null);
@@ -187,20 +187,6 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     loadBoard();
   }, [loadBoard]);
 
-  // Admins get a red dot on the account menu while labeled posts await review.
-  useEffect(() => {
-    if (!currentUser?.is_admin) { setUrgentPending(0); return; }
-    let active = true;
-    supabase
-      .from('threads')
-      .select('id', { count: 'exact', head: true })
-      .eq('alert_type', 'urgent')
-      .is('announced_at', null)
-      .eq('status', 'visible')
-      .then(({ count }) => { if (active) setUrgentPending(count || 0); });
-    return () => { active = false; };
-  }, [currentUser?.is_admin, threads]);
-
   async function loadThreadDetail(threadId) {
     const { data: replyRows, error } = await supabase
       .from('replies')
@@ -292,7 +278,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
   // Throws away the unfinished post and any files chosen for it.
   function discardDraft() {
-    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, emailMembers: false, archiveFolder: null, docDate: '' });
     setNewThreadFiles([]);
     setThreadFormError(null);
   }
@@ -375,19 +361,19 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     if (currentUser && newThreadFiles.length && newThread.category === 'archives') {
       await saveArchivePreview(newThreadFiles[0], currentUser.id, created.id);
     }
-    if (currentUser && payload.alert_type === 'urgent') sendUrgentEmail(created.id);
+    if (currentUser && activeBoard === 'members' && newThread.emailMembers) emailMembers(created.id);
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
-    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, emailMembers: false, archiveFolder: null, docDate: '' });
     goBack(boardHome);
     loadBoard();
   }
 
-  // Urgent posts are emailed to members automatically (api/send-announcement.js).
-  // The post is already saved, so a failure here never loses it: the admin can
-  // still send it from Admin Dashboard -> Notices.
-  async function sendUrgentEmail(threadId) {
+  // Emails a Members-board post to members who turned on announcements
+  // (api/send-announcement.js). Runs only when the poster ticked the box. The
+  // post is already saved, so a failure never loses it.
+  async function emailMembers(threadId) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/send-announcement', {
@@ -398,11 +384,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `error ${res.status}`);
       showToast(body.sent
-        ? `Posted. Urgent email sent to ${body.sent} ${body.sent === 1 ? 'member' : 'members'}.`
+        ? `Posted. Emailed to ${body.sent} ${body.sent === 1 ? 'member' : 'members'}.`
         : 'Posted. No members have turned on announcements yet, so no email went out.');
     } catch (err) {
-      console.error('urgent email failed', err);
-      showToast('Posted. The urgent email could not be sent right now; the admin can send it from the dashboard.');
+      console.error('member email failed', err);
+      showToast('Posted, but the email could not be sent right now.');
     }
   }
 
@@ -1521,9 +1507,19 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                     ))}
                   </div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                    A labeled post shows its icon on the board. Only Urgent posts are emailed.
+                    A labeled post shows its icon on the board. Urgent is a visual flag only; it is not emailed by itself.
                   </p>
                 </fieldset>
+              )}
+
+              {currentUser && activeBoard === 'members' && (
+                <label className="flex items-start text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={newThread.emailMembers} onChange={(e) => setNewThread({ ...newThread, emailMembers: e.target.checked })} className="mt-1 mr-2" />
+                  <span>
+                    Email this to members
+                    <span className="block text-xs text-slate-400 dark:text-slate-500">Sends it by email to members who turned on "Notify me with important announcements." Leave unticked to post on the board only.</span>
+                  </span>
+                </label>
               )}
 
               {currentUser && (

@@ -33,8 +33,9 @@ owner, and what's next.
    the next deploy that matters. It moves every existing thread to the
    Members board (General starts empty) — that's intended.
 3. **Merge PR #4.**
-4. **Test one real urgent post** from a second account with announcements on.
-   Expect: a real email arrives, the poster sees "Urgent email sent to N members".
+4. **Test one real member email** from a second account with announcements on:
+   tick "Email this to members" on a Members post. Expect: a real email arrives,
+   the poster sees "Emailed to N members".
    Nothing has ever been sent through the real Resend/Supabase path.
 5. **Decide the signup default** for `notify_announcements` (see Open decisions).
 
@@ -46,8 +47,9 @@ Goal: single-building version launched by Wednesday 2026-10-15.
   labels, archives, or uploads.
 - **Members:** both boards, replies, likes, uploads (photo/PDF/Word/Excel,
   25 MB), private messages, edit/delete own posts, Archives, labels.
-- **Labels:** Urgent (emailed automatically when posted), Building work and
-  Heads up (labels only, never emailed). Max 2 labeled posts per member per
+- **Labels:** Urgent, Building work and Heads up are visual flags only, never
+  emailed. Email is a separate "Email this to members" checkbox on Members-board
+  posts and archive filings (never General). Max 2 labeled posts per member per
   rolling 24 h.
 - **Units:** picked at signup from Apt 101–708, self-declared, no approval.
   Admin sees signups per unit (Members tab) and can Mute or Delete.
@@ -56,8 +58,8 @@ Goal: single-building version launched by Wednesday 2026-10-15.
 
 - Two boards: General public, Members registered. Existing threads → Members.
 - Unit: self-declared, good faith, no admin approval (2026-10-13).
-- Urgent: emailed automatically on posting, no admin review (2026-10-13).
-- Building work and Heads up: never emailed.
+- Email: per post, by checkbox on the Members board only (2026-10-13). Urgent
+  is a visual flag and never emails by itself. No admin review step.
 - Anonymous posting stays; the landing page no longer says the admin can see
   who wrote a post (owner removed that line 2026-10-12).
 - "General" post category renamed "Everyday Talk" (id still `general`).
@@ -65,10 +67,10 @@ Goal: single-building version launched by Wednesday 2026-10-15.
 ## Open decisions for the owner
 
 1. **Default `notify_announcements` for new signups?** Right now it's off and
-   nothing asks at signup, so almost nobody receives urgent emails. Suggestion:
+   nothing asks at signup, so almost nobody receives member emails. Suggestion:
    default on for new signups, leave existing members as they are.
 2. **Resend daily cap.** Free plan limit is believed to be ~100 emails/day —
-   verify on the Resend dashboard. Two urgent posts to ~55 members in a day
+   verify on the Resend dashboard. Two emailed posts to ~55 members in a day
    could hit it.
 3. **Long-term: D-Board (multi-building).** Idea: sell or license the platform
    to other buildings. Not started. It's a re-architecture (every table needs a
@@ -85,7 +87,7 @@ Goal: single-building version launched by Wednesday 2026-10-15.
 - **Attachments are on a public bucket.** Anyone with a file URL can open it;
   URLs aren't listed without the gated `files` rows. Private bucket + signed
   URLs not built.
-- **Urgent emails have never run for real.** The filter syntax in
+- **Member emails have never run for real.** The filter syntax in
   `api/send-announcement.js` is untested against the live project.
 - **Unit numbers are unverified** by design now.
 - **Deleting an account** keeps their posts as "Anonymous". Suspend is a
