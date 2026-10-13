@@ -1,5 +1,8 @@
 # MeadowBrook Community Board — Project Handoff
 
+> **Start with `HANDOFF.md`** — current state, what's blocking launch,
+> and open decisions. This file is the detailed technical history.
+
 This file is a handoff for continuing work on this project in a fresh session.
 It was written by a prior Claude Code session that built the app end-to-end
 across several days of work. Read this before making changes.
