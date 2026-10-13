@@ -130,8 +130,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
     const { data: threadRows, error } = await supabase
       .from('threads')
-      .select('id, user_id, guest_name, title, content, category, board, archive_folder, doc_date, is_anonymous, alert_type, created_at')
-      .eq('status', 'visible')
+      .select('id, user_id, guest_name, title, content, category, board, archive_folder, doc_date, is_anonymous, alert_type, status, created_at')
+      // Admins also load removed posts so they can open one from the dashboard
+      // before deciding; the board list still shows only live posts.
+      .in('status', currentUser?.is_admin ? ['visible', 'removed'] : ['visible'])
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -610,6 +612,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
   }
 
   const filteredThreads = threads
+    .filter((t) => t.status === 'visible')
     .filter((t) => t.board === activeBoard)
     .filter((t) => filter === 'all' || t.category === filter)
     .filter((t) =>
@@ -1179,6 +1182,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             <ArrowLeft className="w-4 h-4 mr-1" /> Back to the {activeBoard === 'members' ? 'Members' : 'General'} board
           </button>
 
+          {openThread.status === 'removed' && (
+            <p className="text-sm text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2 mb-4">
+              This post has been removed. Only admins can see it.
+            </p>
+          )}
           <div className="bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-6 mb-5">
             <span className={`${categories.find((c) => c.id === openThread.category)?.color} text-white px-2.5 py-1 rounded-full text-xs font-semibold`}>
               {categories.find((c) => c.id === openThread.category)?.name}
