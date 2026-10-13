@@ -74,6 +74,54 @@ export function downloadUrl(file) {
   return `${file.file_url}${separator}download=${encodeURIComponent(file.file_name)}`;
 }
 
+// Archive previews: a small JPEG of the first page (or the photo itself),
+// made in the browser at filing time and stored beside the document as
+// preview.jpg. The Archives list then downloads only this small image, never
+// the whole PDF, which keeps the free plan's download allowance safe.
+export const ARCHIVE_PREVIEW_WIDTH = 360;
+
+export function archivePreviewUrl(userId, threadId) {
+  return supabase.storage.from(BUCKET).getPublicUrl(`${userId}/${threadId}/preview.jpg`).data.publicUrl;
+}
+
+async function renderArchivePreview(file) {
+  const canvas = document.createElement('canvas');
+  if (file.type === 'application/pdf') {
+    const { loadPdf, renderPageToCanvas } = await import('./pdfRender');
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const pdf = await loadPdf(objectUrl);
+      await renderPageToCanvas(pdf, 1, canvas, ARCHIVE_PREVIEW_WIDTH);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+    return canvas;
+  }
+  const bitmap = await createImageBitmap(file);
+  canvas.width = ARCHIVE_PREVIEW_WIDTH;
+  canvas.height = Math.round((bitmap.height * ARCHIVE_PREVIEW_WIDTH) / bitmap.width);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas;
+}
+
+// Never fails the post: if the preview can't be made, the Archives list just
+// shows the file-type badge instead.
+export async function saveArchivePreview(file, userId, threadId) {
+  try {
+    const canvas = await renderArchivePreview(file);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    if (!blob) return false;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(`${userId}/${threadId}/preview.jpg`, blob, { contentType: 'image/jpeg' });
+    return !error;
+  } catch (err) {
+    console.error('archive preview failed', err);
+    return false;
+  }
+}
+
 export async function fetchAttachments({ threadIds = [], replyIds = [] }) {
   const byThread = {};
   const byReply = {};
