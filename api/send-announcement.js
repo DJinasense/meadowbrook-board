@@ -1,32 +1,33 @@
-// Vercel serverless function: emails an admin-approved labeled post (urgent /
-// building work / heads up) to every
-// member who opted in under Settings -> "Notify me with important announcements".
+// Vercel serverless function: emails an URGENT post to every member who opted in
+// under Settings -> "Notify me with important announcements".
+//
+// It runs automatically when a member posts something labeled Urgent (the
+// browser calls it right after the post is saved). Only Urgent is ever emailed;
+// "Building work" and "Heads up" are labels on the board and nothing more.
+// An admin can also call it from Admin Dashboard -> Notices to retry an urgent
+// post whose email didn't go out.
 //
 // Why a server function: it needs the Resend key and members' email addresses,
-// neither of which may reach the browser. It never holds a Supabase service key
-// either. It forwards the caller's own login token to Supabase, so the database
-// functions (all "Admins only") decide who is allowed:
-//   admin_claim_announcement      marks the post sent (atomic; blocks double sends)
-//   admin_announcement_recipients opted-in, not-suspended members' emails
-//   admin_release_announcement    undoes the claim if the email provider fails
+// neither of which may reach the browser.
+//
+// Who may send: the post's own author, or an admin. The caller's login token is
+// checked with Supabase first. After that the function uses the service key
+// for exactly four things (look up the caller, claim the post, list recipients,
+// release the claim), each with explicit filters.
 //
 // Env vars (Vercel project settings):
-//   RESEND_API_KEY            required (a send-only key is enough)
+//   RESEND_API_KEY              required (a send-only key is enough)
+//   SUPABASE_SERVICE_ROLE_KEY   required. NEVER give it a VITE_ prefix: VITE_
+//                               variables are bundled into the public website.
 //   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY   already set for the frontend build
-//   ANNOUNCE_FROM, SITE_URL   optional overrides
+//   ANNOUNCE_FROM, SITE_URL     optional overrides
 
 const FROM = process.env.ANNOUNCE_FROM || 'MeadowBrook Board <noreply@dgrvip.net>';
 const SITE_URL = (process.env.SITE_URL || 'https://mbb7.us').replace(/\/$/, '');
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BATCH_SIZE = 100; // Resend's batch limit
-
-// Wording and look per label; keys match threads.alert_type.
-const KINDS = {
-  urgent: { subject: 'Urgent', heading: 'Urgent notice', color: '#b91c1c', mark: '&#9733;', markText: '★' },
-  construction: { subject: 'Building work', heading: 'Building work notice', color: '#c2410c', mark: '&#128679;', markText: '🚧' },
-  attention: { subject: 'Heads up', heading: 'Heads up', color: '#a16207', mark: '&#9733;', markText: '★' },
-};
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -36,23 +37,28 @@ function excerpt(text, max = 600) {
   return clean.length > max ? `${clean.slice(0, max).trimEnd()}…` : clean;
 }
 
-async function rpc(name, args, token) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
-    method: 'POST',
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
+// PostgREST call as the service role. Callers build explicit filters.
+async function db(path, { method = 'GET', body, returning = false } = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(returning ? { Prefer: 'return=representation' } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const body = await res.json().catch(() => null);
-  return { ok: res.ok, status: res.status, body };
+  const data = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, data };
 }
 
 function buildEmail(post) {
   const link = `${SITE_URL}/thread/${post.id}`;
   const preview = excerpt(post.content);
-  const kind = KINDS[post.alert_type] || KINDS.attention;
-  const subject = `${kind.subject}: ${post.title}`;
+  const subject = `Urgent: ${post.title}`;
   const text = [
-    `MeadowBrook Building 7 — ${kind.heading.toLowerCase()}`,
+    'MeadowBrook Building 7 — urgent notice',
     '',
     post.title,
     '',
@@ -64,7 +70,7 @@ function buildEmail(post) {
     'To stop these emails, log in, open Settings, and uncheck that box.',
   ].join('\n');
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1e293b">
-  <p style="color:${kind.color};font-weight:bold;margin:0 0 4px">${kind.mark} ${kind.heading} &middot; MeadowBrook Building 7</p>
+  <p style="color:#b91c1c;font-weight:bold;margin:0 0 4px">&#9733; Urgent notice &middot; MeadowBrook Building 7</p>
   <h2 style="margin:0 0 12px">${escapeHtml(post.title)}</h2>
   <p style="white-space:pre-line;line-height:1.5;margin:0 0 16px">${escapeHtml(preview)}</p>
   <p style="margin:0 0 24px"><a href="${link}" style="background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Read it on the board</a></p>
@@ -76,37 +82,50 @@ function buildEmail(post) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
   if (!process.env.RESEND_API_KEY) return res.status(500).json({ error: 'Email sending is not set up yet (missing RESEND_API_KEY).' });
-  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ error: 'Server is missing its Supabase settings.' });
+  if (!SERVICE_KEY) return res.status(500).json({ error: 'Email sending is not set up yet (missing SUPABASE_SERVICE_ROLE_KEY).' });
+  if (!SUPABASE_URL || !ANON_KEY) return res.status(500).json({ error: 'Server is missing its Supabase settings.' });
 
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const threadId = req.body && req.body.threadId;
   if (!token) return res.status(401).json({ error: 'Please log in again.' });
   if (!threadId || !/^[0-9a-f-]{36}$/i.test(threadId)) return res.status(400).json({ error: 'Missing or invalid post id.' });
 
-  // 1. Claim the post. Only an admin gets past this, and only once per post.
-  const claim = await rpc('admin_claim_announcement', { p_thread: threadId }, token);
-  if (!claim.ok) {
-    const msg = claim.body && claim.body.message;
-    if (msg && /admins only/i.test(msg)) return res.status(403).json({ error: 'Only admins can send announcements.' });
-    if (claim.status === 401) return res.status(401).json({ error: 'Please log in again.' });
-    return res.status(502).json({ error: 'Could not check the post. Please try again.' });
-  }
-  const post = Array.isArray(claim.body) ? claim.body[0] : null;
-  if (!post) return res.status(409).json({ error: 'That post was already emailed, or is no longer a labeled live post.' });
+  // 1. Who is calling? Supabase verifies the token; we never trust a user id from the browser.
+  const who = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
+  if (!who.ok) return res.status(401).json({ error: 'Please log in again.' });
+  const caller = await who.json().catch(() => null);
+  if (!caller || !/^[0-9a-f-]{36}$/i.test(caller.id || '')) return res.status(401).json({ error: 'Please log in again.' });
 
-  const release = () => rpc('admin_release_announcement', { p_thread: threadId }, token).catch(() => {});
+  const profile = await db(`users?id=eq.${caller.id}&select=is_admin,is_muted,is_suspended`);
+  const me = profile.ok && Array.isArray(profile.data) ? profile.data[0] : null;
+  if (!me) return res.status(403).json({ error: 'No member account found for this login.' });
+  if (!me.is_admin && (me.is_muted || me.is_suspended)) return res.status(403).json({ error: 'Posting is paused on this account.' });
+
+  // 2. Claim the post. One atomic update: only an urgent, live, not-yet-emailed
+  //    post matches, and a non-admin only matches their own. That blocks double
+  //    sends and anyone emailing a post that isn't theirs.
+  const authorFilter = me.is_admin ? '' : `&user_id=eq.${caller.id}`;
+  const claim = await db(
+    `threads?id=eq.${threadId}&alert_type=eq.urgent&announced_at=is.null&status=eq.visible${authorFilter}&select=id,title,content`,
+    { method: 'PATCH', body: { announced_at: new Date().toISOString() }, returning: true },
+  );
+  if (!claim.ok) return res.status(502).json({ error: 'Could not check the post. Please try again.' });
+  const post = Array.isArray(claim.data) ? claim.data[0] : null;
+  if (!post) return res.status(409).json({ error: 'That post was already emailed, is not an urgent post of yours, or is no longer live.' });
+
+  const release = () => db(`threads?id=eq.${threadId}`, { method: 'PATCH', body: { announced_at: null } }).catch(() => {});
 
   try {
-    // 2. Who gets it.
-    const rec = await rpc('admin_announcement_recipients', {}, token);
+    // 3. Who gets it: opted in, not suspended, not the person who posted it.
+    const rec = await db(`users?notify_announcements=eq.true&is_suspended=eq.false&email=not.is.null&id=neq.${caller.id}&select=email`);
     if (!rec.ok) throw new Error('Could not load the recipient list.');
-    const recipients = [...new Set((rec.body || []).map((r) => r.email).filter(Boolean))];
+    const recipients = [...new Set((rec.data || []).map((r) => r.email).filter(Boolean))];
     if (recipients.length === 0) {
       await release();
       return res.status(200).json({ sent: 0, note: 'No one has opted in yet, so nothing was sent.' });
     }
 
-    // 3. One message per person (never a shared To/Cc, so addresses stay private).
+    // 4. One message per person (never a shared To/Cc, so addresses stay private).
     const { subject, text, html } = buildEmail(post);
     let sent = 0;
     for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
@@ -117,13 +136,13 @@ export default async function handler(req, res) {
         body: JSON.stringify(batch),
       });
       if (!r.ok) {
-        // If nothing went out yet, free the post so the admin can retry; if some
+        // If nothing went out yet, free the post so it can be retried; if some
         // batches already went, keep it marked sent so no one gets it twice.
         if (sent === 0) await release();
         const detail = await r.json().catch(() => ({}));
         return res.status(502).json({
           error: sent === 0
-            ? `The email service refused the send${detail.message ? `: ${detail.message}` : ''}. Nothing was sent; you can try again.`
+            ? `The email service refused the send${detail.message ? `: ${detail.message}` : ''}. Nothing was sent.`
             : `Sent to ${sent} of ${recipients.length} before the email service failed.`,
         });
       }
@@ -132,6 +151,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ sent });
   } catch (err) {
     await release();
-    return res.status(502).json({ error: `${err.message} Nothing was sent; you can try again.` });
+    return res.status(502).json({ error: `${err.message} Nothing was sent.` });
   }
 }

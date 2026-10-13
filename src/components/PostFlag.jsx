@@ -2,13 +2,15 @@ import React from 'react';
 import { Star, TrafficCone } from 'lucide-react';
 
 // The three labels a member can put on a post. `alert_type` in the database
-// holds the key. Admin approval is still required before any email goes out.
+// holds the key. Only 'urgent' is ever emailed (automatically, when posted, see
+// api/send-announcement.js); the other two are just labels on the board.
 export const FLAG_ORDER = ['urgent', 'construction', 'attention'];
 
 export const FLAGS = {
   urgent: {
     label: 'Urgent',
     hint: 'Safety or an emergency: everyone should see this right away',
+    note: 'Urgent posts are emailed to members automatically (those with announcements turned on).',
     Icon: Star,
     filled: true,
     color: 'text-red-600 dark:text-red-400',

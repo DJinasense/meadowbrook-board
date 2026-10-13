@@ -192,7 +192,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     supabase
       .from('threads')
       .select('id', { count: 'exact', head: true })
-      .not('alert_type', 'is', null)
+      .eq('alert_type', 'urgent')
       .is('announced_at', null)
       .eq('status', 'visible')
       .then(({ count }) => { if (active) setUrgentPending(count || 0); });
@@ -355,12 +355,35 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       const failed = await uploadAttachments(newThreadFiles, currentUser.id, { threadId: created.id });
       if (failed.length) showToast(`Posted, but these files didn't upload: ${failed.join(', ')}`);
     }
+    if (currentUser && newThread.alertType === 'urgent') sendUrgentEmail(created.id);
     setSubmittingThread(false);
 
     setNewThreadFiles([]);
     setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
     goBack(boardHome);
     loadBoard();
+  }
+
+  // Urgent posts are emailed to members automatically (api/send-announcement.js).
+  // The post is already saved, so a failure here never loses it: the admin can
+  // still send it from Admin Dashboard -> Notices.
+  async function sendUrgentEmail(threadId) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/send-announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ threadId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `error ${res.status}`);
+      showToast(body.sent
+        ? `Posted. Urgent email sent to ${body.sent} ${body.sent === 1 ? 'member' : 'members'}.`
+        : 'Posted. No members have turned on announcements yet, so no email went out.');
+    } catch (err) {
+      console.error('urgent email failed', err);
+      showToast('Posted. The urgent email could not be sent right now; the admin can send it from the dashboard.');
+    }
   }
 
   async function handleReply() {
@@ -1467,12 +1490,13 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                         <span>
                           <span className="font-medium">{type ? FLAGS[type].label : 'No label'}</span>
                           {type && <span className="block text-xs text-slate-400 dark:text-slate-500">{FLAGS[type].hint}</span>}
+                          {type && FLAGS[type].note && <span className="block text-xs font-semibold text-red-600 dark:text-red-400 mt-0.5">{FLAGS[type].note}</span>}
                         </span>
                       </label>
                     ))}
                   </div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                    A labeled post shows its icon on the board, and the admin may email it to neighbors who asked for announcements.
+                    A labeled post shows its icon on the board. Only Urgent posts are emailed.
                   </p>
                 </fieldset>
               )}

@@ -186,22 +186,41 @@ What they do:
   column is user-updatable (threads UPDATE is column-granted); only admin RPCs
   change them. **threads INSERT is table-wide for anon/authenticated, so any
   new threads column is insertable by guests unless the policy says otherwise.**
-- **Admin review.** Admin Dashboard -> Notices tab (red count badge; red dot on
-  the account menu in `MainBoard`). Per post: "Email to subscribers" (with a
-  confirm step and the recipient count), "Remove label"
-  (`admin_dismiss_flag`, button "Remove label"), or Remove. Sent posts are listed under "Already
-  emailed". No cron job: an admin click sends immediately, which is what "check
-  it isn't spam first" needs.
-- **Sending.** `api/send-announcement.js` (Vercel function; `vercel.json` now
-  excludes `/api/` from the SPA rewrite). It forwards the admin's own login
-  token to Supabase, so no service-role key is needed: `admin_claim_announcement`
-  (atomic "mark sent", blocks double sends) -> `admin_announcement_recipients`
-  (opted in AND not suspended) -> Resend batch API, one message per person ->
-  `admin_release_announcement` if Resend refuses. Sender `MeadowBrook Board
-  <noreply@dgrvip.net>`. **Needs `RESEND_API_KEY` in the Vercel project env
-  vars (the user adds it themselves; a send-only key is enough). Until it's set
-  the Send button shows "Email sending is not set up yet".** Logic was tested
-  with a mocked Supabase/Resend; no real email has been sent through it yet.
+- **Only Urgent is emailed, automatically (changed 2026-10-13).** The user does
+  not want to read every urgent post first. When a member posts with the Urgent
+  label, `MainBoard.sendUrgentEmail` calls `/api/send-announcement` right after
+  the insert (the post is already saved; a failure never loses it, the poster
+  gets a toast and the admin sees it in Notices). **Building work and Heads up
+  are labels only and are never emailed.** The form says so under Urgent
+  (`FLAGS.urgent.note` in `PostFlag.jsx`). Recipients are members with
+  `notify_announcements` on and not suspended, minus the poster. That column
+  **defaults to false and nothing asks at signup, so until members tick the
+  box or the default changes, few or no one receives anything** (open question
+  for the user: default it on for new signups).
+- **Admin screen.** Admin Dashboard -> Notices tab now lists only Urgent posts
+  whose email did NOT go out (red badge / red dot on the account menu count the
+  same thing), with "Email to subscribers" as the retry, "Remove label", or
+  Remove. Emailed ones are under "Already emailed". The old per-post review
+  step is gone.
+- **Sending.** `api/send-announcement.js` (Vercel function; `vercel.json`
+  excludes `/api/` from the SPA rewrite). It verifies the caller's login token
+  with Supabase, then, **using `SUPABASE_SERVICE_ROLE_KEY`**, authorizes
+  (author of the post, or admin; muted/suspended refused), atomically claims the
+  post (`announced_at`, urgent + visible + unsent only, so no double sends and
+  no emailing someone else's post), lists recipients, sends one Resend message
+  per person, and releases the claim if nothing went out. The old
+  `admin_claim_announcement` / `admin_announcement_recipients` /
+  `admin_release_announcement` RPCs still exist but the function no longer calls
+  them (the admin recipient count in the dashboard still uses the second).
+  **Needs `RESEND_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel env
+  vars (the user adds both; never give the service key a `VITE_` prefix or it is
+  shipped to every browser).** Until both are set, urgent posts save fine and the
+  poster sees "the urgent email could not be sent". Tested with mocked
+  Supabase/Resend only (22 cases); **no real email has been sent through it yet,
+  and the PostgREST filter syntax has not run against the real project.** The
+  existing limit of 2 labeled posts per member per 24h is the only brake on
+  urgent blasts; the admin's tools are Mute and Delete. Resend's free plan has a
+  daily send cap, so two urgent posts to ~55 people in a day could hit it.
 - **Settings.** The "daily digest" checkbox is gone, replaced by "Notify me
   with important announcements" (`users.notify_announcements`, default false,
   in the UPDATE grant). `notify_daily_digest` and `notify_on_reply` columns
@@ -311,12 +330,15 @@ has never touched the real project, so run its VERIFY queries afterwards.)
   `Apt 205`. The picked unit travels in signup metadata (`user_metadata.unit`);
   `handle_confirmed_user` (trigger) and `ensureProfile` (fallback) save it.
   Members can only write it through the `set_my_unit` RPC (no UPDATE grant).
-  **Self-declared, flagged for review** (user's choice): access is instant;
-  `users.unit_reviewed` is false until an admin clicks "Confirm unit" in the
-  Members tab (`admin_set_unit_reviewed`; the tab badge counts unconfirmed).
+  **Self-declared, no approval** (user's decision 2026-10-13: "good faith"; the
+  earlier "flag for review / Confirm unit" flow was removed from the UI): access
+  is instant and nobody checks the unit. The admin's Members tab has a
+  **"Signups per unit"** panel (counts per unit, amber when more than one account
+  chose a unit, tap a unit to list its accounts); the answer to a bad actor is
+  Mute or Delete. `users.unit_reviewed` / `unit_reviewed_at` and the
+  `admin_set_unit_reviewed` RPC still exist in the database, unused.
   Existing accounts keep access, have no unit, and get a "Add your unit number"
-  banner. Changing a unit resets it to unconfirmed. Only street-address-free
-  unit # is collected (one building).
+  banner. Only street-address-free unit # is collected (one building).
 - **Anonymous posting is unchanged**: `user_id` is always stored (RLS and admin
   tools need it), the UI shows "Anonymous". The landing page says "Members aren't
   required to post their info". It briefly also disclosed that the admin can tell
