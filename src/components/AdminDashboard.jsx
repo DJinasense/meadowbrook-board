@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { FLAGS, FlagIcon } from './PostFlag';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
+import { navigate } from '../lib/router';
 
 export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading } = useCurrentUser();
@@ -576,7 +577,12 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                   <div key={p.id} className={`bg-white/95 dark:bg-slate-800/95 rounded-xl border border-slate-200 dark:border-slate-700 p-4 ${p.status === 'removed' ? 'opacity-60' : ''}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{p.title}</p>
+                        <button
+                          onClick={() => navigate('thread', p.id)}
+                          className="text-left text-sm font-semibold text-blue-700 dark:text-blue-400 hover:underline"
+                        >
+                          {p.title}
+                        </button>
                         <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">{p.content}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                           {p.authorLabel} · {new Date(p.created_at).toLocaleDateString()} · {p.replyCount} {p.replyCount === 1 ? 'reply' : 'replies'}

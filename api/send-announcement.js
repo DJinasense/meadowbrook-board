@@ -116,8 +116,8 @@ export default async function handler(req, res) {
   const release = () => db(`threads?id=eq.${threadId}`, { method: 'PATCH', body: { announced_at: null } }).catch(() => {});
 
   try {
-    // 3. Who gets it: opted in, not suspended, not the person who posted it.
-    const rec = await db(`users?notify_announcements=eq.true&is_suspended=eq.false&email=not.is.null&id=neq.${caller.id}&select=email`);
+    // 3. Who gets it: everyone opted in and not suspended (the poster included).
+    const rec = await db(`users?notify_announcements=eq.true&is_suspended=eq.false&email=not.is.null&select=email`);
     if (!rec.ok) throw new Error('Could not load the recipient list.');
     const recipients = [...new Set((rec.data || []).map((r) => r.email).filter(Boolean))];
     if (recipients.length === 0) {
