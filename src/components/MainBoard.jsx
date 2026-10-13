@@ -288,6 +288,13 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     navigate('thread', thread.id);
   }
 
+  // Throws away the unfinished post and any files chosen for it.
+  function discardDraft() {
+    setNewThread({ title: '', content: '', category: 'general', isAnonymous: false, alertType: null, archiveFolder: null, docDate: '' });
+    setNewThreadFiles([]);
+    setThreadFormError(null);
+  }
+
   function backToBoard() {
     goBack(boardHome);
   }
@@ -354,7 +361,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
       // Usually the cap of 2 labeled posts in 24 hours. The database message
       // is unreadable, so say what to do.
       setThreadFormError(/row-level security/i.test(error.message)
-        ? "This post was refused. If you've already posted 2 labeled posts in the last 24 hours, choose 'No label' and try again."
+        ? "This post was refused. You may have hit today's limit on labeled posts. Choose 'No label' and try again."
         : error.message);
       return;
     }
@@ -1520,6 +1527,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               <button onClick={handleCreateThread} disabled={submittingThread || currentUser?.is_muted} className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-800 transition-colors disabled:opacity-50">
                 {submittingThread ? 'Posting...' : 'Post Thread'}
               </button>
+              {hasUnsavedPost && (
+                <button onClick={discardDraft} className="w-full text-rose-700 dark:text-rose-400 text-sm py-2 hover:underline">
+                  Discard this draft
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1552,16 +1564,21 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             Say so plainly, with the way back to it, instead of letting someone
             assume it's gone. */}
         {hasUnsavedPost && (
-          <button
-            onClick={() => navigate('create', activeBoard)}
-            className="w-full flex items-center gap-2 text-left text-sm text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 mb-4 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-          >
-            <Pencil className="w-4 h-4 shrink-0" />
-            <span className="flex-1 truncate">
-              You have an unfinished post{draftTitle ? `: “${draftTitle}”` : ''}
-            </span>
-            <span className="font-semibold shrink-0">Continue</span>
-          </button>
+          <div className="w-full flex items-center gap-2 text-sm text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 mb-4">
+            <button
+              onClick={() => navigate('create', activeBoard)}
+              className="flex-1 min-w-0 flex items-center gap-2 text-left hover:opacity-80"
+            >
+              <Pencil className="w-4 h-4 shrink-0" />
+              <span className="flex-1 truncate">
+                You have an unfinished post{draftTitle ? `: “${draftTitle}”` : ''}
+              </span>
+              <span className="font-semibold shrink-0">Continue</span>
+            </button>
+            <button onClick={discardDraft} className="font-semibold shrink-0 text-rose-700 dark:text-rose-400 hover:underline">
+              Discard
+            </button>
+          </div>
         )}
 
         <div className="relative mb-4">
