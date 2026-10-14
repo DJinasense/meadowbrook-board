@@ -37,7 +37,8 @@ owner, and what's next.
    tick "Email this to members" on a Members post. Expect: a real email arrives,
    the poster sees "Emailed to N members".
    Nothing has ever been sent through the real Resend/Supabase path.
-5. **Decide the signup default** for `notify_announcements` (see Open decisions).
+5. **Run `supabase_label_cap_and_default_notify.sql`** in the Supabase SQL Editor
+   (Urgent cap 3/24h; new signups default to member emails on). Then run its VERIFY lines.
 
 Goal: single-building version launched by Wednesday 2026-10-15.
 
@@ -49,8 +50,8 @@ Goal: single-building version launched by Wednesday 2026-10-15.
   25 MB), private messages, edit/delete own posts, Archives, labels.
 - **Labels:** Urgent, Building work and Heads up are visual flags only, never
   emailed. Email is a separate "Email this to members" checkbox on Members-board
-  posts and archive filings (never General). Max 2 labeled posts per member per
-  rolling 24 h.
+  posts and archive filings (never General). Max 3 Urgent posts per member per
+  rolling 24 h; other labels are not capped (`supabase_label_cap_and_default_notify.sql`).
 - **Units:** picked at signup from Apt 101–708, self-declared, no approval.
   Admin sees signups per unit (Members tab) and can Mute or Delete.
 
@@ -66,9 +67,9 @@ Goal: single-building version launched by Wednesday 2026-10-15.
 
 ## Open decisions for the owner
 
-1. **Default `notify_announcements` for new signups?** Right now it's off and
-   nothing asks at signup, so almost nobody receives member emails. Suggestion:
-   default on for new signups, leave existing members as they are.
+1. **Resend daily cap.** Believed ~100 emails/day on the free plan; not verified
+   (no dashboard access from Claude). Check it on the Resend dashboard. Two
+   emailed posts to ~55 members in one day could hit it.
 2. **Resend daily cap.** Free plan limit is believed to be ~100 emails/day —
    verify on the Resend dashboard. Two emailed posts to ~55 members in a day
    could hit it.

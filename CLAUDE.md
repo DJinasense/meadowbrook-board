@@ -185,7 +185,7 @@ What they do:
   Stored in `threads.alert_type` (NULL, 'urgent', 'construction', 'attention',
   CHECK-constrained). The old boolean `threads.is_urgent` was replaced by it.
   The INSERT policy lets only signed-in, unmuted members set a label, max 2
-  labeled posts per rolling 24h, and refuses a pre-set `announced_at`. Neither
+  Urgent posts are capped at 3 per rolling 24h (`supabase_label_cap_and_default_notify.sql`), and refuses a pre-set `announced_at`. Neither
   column is user-updatable (threads UPDATE is column-granted); only admin RPCs
   change them. **threads INSERT is table-wide for anon/authenticated, so any
   new threads column is insertable by guests unless the policy says otherwise.**
@@ -197,9 +197,9 @@ What they do:
   after the insert (the post is already saved; a failure never loses it, the
   poster gets a toast). Urgent, Building work and Heads up are labels only and
   never send email. Recipients are members with `notify_announcements` on and
-  not suspended, poster included. That column **defaults to false and nothing
-  asks at signup, so until members tick the box or the default changes, few or
-  no one receives anything** (open question for the owner: default it on).
+  not suspended, poster included. That column **defaults to true for new signups
+  (`supabase_label_cap_and_default_notify.sql`; existing members unchanged)**;
+  members can untick it in Settings.
 - **Admin screen.** Admin Dashboard -> Notices tab no longer runs a review
   queue (`urgentToReview` is empty; the red dot is gone). Its copy describes the
   checkbox model. "Already emailed" lists sent posts. Remove label, or
@@ -221,7 +221,7 @@ What they do:
   poster sees "the urgent email could not be sent". Tested with mocked
   Supabase/Resend only (22 cases); **no real email has been sent through it yet,
   and the PostgREST filter syntax has not run against the real project.** The
-  existing limit of 2 labeled posts per member per 24h is the only brake on
+  existing limit of 3 Urgent posts per member per 24h is the only brake on
   urgent blasts; the admin's tools are Mute and Delete. Resend's free plan has a
   daily send cap, so two urgent posts to ~55 people in a day could hit it.
 - **Settings.** The "daily digest" checkbox is gone, replaced by "Notify me
