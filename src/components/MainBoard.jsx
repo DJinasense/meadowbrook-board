@@ -1059,7 +1059,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">Neighborly built, hosted, and maintained — Community Board. Fueled by transparency, authenticity, anonymity, if need be. Our Build. Your Voice.</p>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-8 text-center italic leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>Neighborly built, hosted, and maintained — Community Board. Fueled by transparency, authenticity, anonymity, if need be. Our Build. Your Voice.</p>
 
             <div className="space-y-4 mb-6 text-left">
               <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6">
