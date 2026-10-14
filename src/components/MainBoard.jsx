@@ -1059,7 +1059,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8 text-center italic leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>Neighborly built, hosted, and maintained — Community Board. Fueled by transparency, authenticity, anonymity, if need be. Our Build. Your Voice.</p>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-8 text-center italic leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
+              <span className="block">Neighborly built, hosted, and maintained — Community Board.</span>
+              <span className="block">Fueled by transparency, authenticity, anonymity, if need be.</span>
+              <span className="block">Our Build. Your Voice.</span>
+            </p>
 
             <div className="space-y-4 mb-6 text-left">
               <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6">
@@ -1068,7 +1072,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">General Board</h2>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4 text-center">
-                  Open to neighbors. Start a thread, read a thread, join in a conversation. See something, say something. No account required. Post with name, unit number, or anonymously.
+                  <span className="block">Open to neighbors. Start a thread, read a thread, join in a conversation.</span>
+                  <span className="block">See something, say something.</span>
+                  <span className="block">No account required.</span>
+                  <span className="block">Post with name, unit number, or anonymously.</span>
                 </p>
                 <button
                   onClick={() => navigate('board')}
