@@ -1059,7 +1059,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </div>
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">A neighbor-run community board. Your building. Your voice.</p>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-8">Neighborly built, hosted, and maintained — Community Board. Fueled by transparency, authenticity, anonymity, if need be. Our Build. Your Voice.</p>
 
             <div className="space-y-4 mb-6 text-left">
               <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6">
@@ -1067,8 +1067,8 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <Globe className="w-5 h-5 text-blue-700 dark:text-blue-400" />
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">General Board</h2>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
-                  Open to everyone. Read the conversation and start a thread. No account needed.
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4 text-center">
+                  Open to neighbors. Start a thread, read a thread, join in a conversation. See something, say something. No account required. Post with name, unit number, or anonymously.
                 </p>
                 <button
                   onClick={() => navigate('board')}
@@ -1084,19 +1084,16 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Members Board</h2>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                  For registered Building 7 residents. Sign up with your unit number to get in.
+                  Register as a Building 7 resident. Sign up with your unit number to get in.
                 </p>
                 <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5 mb-3">
-                  <li className="flex gap-2"><Archive className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Archives: board minutes, budgets, and letters</li>
                   <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Upload photos, PDFs, and documents</li>
                   <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Private messages to other members</li>
                   <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Edit or delete your own posts</li>
+                  <li className="flex gap-2"><Archive className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Archives: previous budget proposals, current budgeting info, applicable letters, anything and everything. Upload what you've got.</li>
                 </ul>
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/60 rounded-lg px-3 py-2 mb-1">
-                  Members aren't required to post their info.
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                  Post under your name, or anonymously. Neighbors won't see your name or unit.
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/60 rounded-lg px-3 py-2 mb-4">
+                  Members can post under their name, unit #, or <em className="font-bold italic">anonymously</em>.
                 </p>
                 {currentUser ? (
                   <button
