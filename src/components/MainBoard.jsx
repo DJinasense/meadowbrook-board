@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { FLAGS, FLAG_ORDER, FlagIcon } from './PostFlag';
-import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart, Globe, Users, Archive } from 'lucide-react';
+import { MessageSquare, Plus, ArrowLeft, Send, ThumbsUp, Filter, Leaf, Lock, Flag, Search, X, UserPlus, Shield, LogIn, ChevronDown, Settings, LogOut, Sun, Moon, Mail, Pencil, Paperclip, Heart, Globe, Users, Archive, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
@@ -10,7 +10,9 @@ import { UNIT_FLOORS } from '../lib/units';
 import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
 import { FilePicker, AttachmentList, AttachmentThumbs } from './Attachments';
 import Lightbox from './Lightbox';
-import { useSiteCopy } from '../lib/siteCopy';
+import { Render } from '@puckeditor/core';
+import { puckConfig } from '../lib/puckConfig';
+import { useSitePage } from '../lib/useSitePage';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -30,7 +32,7 @@ const MUTED_NOTICE = 'Posting is paused on your account. You can still read the 
 
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, onOpenArchives, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_announcements, is_suspended }
-  const { copy } = useSiteCopy();
+  const { pageData } = useSitePage('landing');
   // The current screen comes from the URL/history rather than local state, so
   // the browser's Back button walks back through the board instead of leaving
   // the site. See src/lib/router.js.
@@ -1053,86 +1055,19 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             {ThemeToggle()}
           </div>
         )}
-        <div className="flex-1 flex items-center justify-center px-6 py-16 min-h-screen">
-          <div className="max-w-lg w-full text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 mb-6 p-3.5 shadow-xl shadow-slate-200/50 dark:shadow-none">
-              <img src="/logo-icon.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain dark:hidden" />
-              <img src="/logo-icon-white.png" alt="MeadowBrook Building 7" className="w-full h-full object-contain hidden dark:block" />
-            </div>
-
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-8 text-center italic leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              <span className="block">{copy('landing.hero.1', 'Neighborly built, hosted, and maintained — Community Board.')}</span>
-              <span className="block">{copy('landing.hero.2', 'Fueled by transparency, authenticity, anonymity, if need be.')}</span>
-              <span className="block">{copy('landing.hero.3', 'Our Build. Your Voice.')}</span>
-            </p>
-
-            <div className="space-y-4 mb-6 text-left">
-              <div className="bg-white/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Globe className="w-5 h-5 text-blue-700 dark:text-blue-400" />
-                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">General Board</h2>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4 text-center">
-                  <span className="block">{copy('landing.general.1', 'Open to neighbors. Start a thread, read a thread, join in a conversation.')}</span>
-                  <span className="block">{copy('landing.general.2', 'See something, say something.')}</span>
-                  <span className="block">{copy('landing.general.3', 'No account required.')}</span>
-                  <span className="block">{copy('landing.general.4', 'Post with name, unit number, or anonymously.')}</span>
-                </p>
-                <button
-                  onClick={() => navigate('board')}
-                  className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-md shadow-blue-100 dark:shadow-none"
-                >
-                  Enter the General Board
-                </button>
-              </div>
-
-              <div className="bg-white/90 dark:bg-slate-800/90 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
-                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Members Board</h2>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                  {copy('landing.members.intro', 'Register as a Building 7 resident. Sign up with your unit number to get in.')}
-                </p>
-                <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5 mb-3">
-                  <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Upload photos, PDFs, and documents</li>
-                  <li className="flex gap-2"><Mail className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Private messages to other members</li>
-                  <li className="flex gap-2"><Pencil className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Edit or delete your own posts</li>
-                  <li className="flex gap-2"><Archive className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Archives: previous budget proposals, current budgeting info, applicable letters, anything and everything. Upload what you've got.</li>
-                </ul>
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/60 rounded-lg px-3 py-2 mb-4">
-                  {copy('landing.members.posting', 'Members can post under their name, unit #, or anonymously.')}
-                </p>
-                {currentUser ? (
-                  <button
-                    onClick={() => navigate('members')}
-                    className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
-                  >
-                    Enter the Members Board
-                  </button>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { if (onRequestSignup) onRequestSignup(); }}
-                      className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
-                    >
-                      <UserPlus className="w-4 h-4" /> Sign up
-                    </button>
-                    <button
-                      onClick={() => { if (onRequestLogin) onRequestLogin(); }}
-                      className="flex-1 flex items-center justify-center gap-2 border-2 border-emerald-600 text-emerald-700 dark:text-emerald-300 py-3 rounded-xl font-semibold hover:bg-emerald-50 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      <LogIn className="w-4 h-4" /> Log in
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-300 dark:text-slate-600 mt-8">
-              {copy('landing.footer', 'Building 7 · If you see something, say something')}
-            </p>
+        {currentUser?.is_admin && (
+          <button
+            onClick={() => navigate('editor')}
+            className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-full font-bold text-xs shadow-xl hover:shadow-2xl hover:scale-105 transition-all cursor-pointer border border-blue-400/40"
+            title="Open Puck visual builder to edit, rearrange, or add blocks"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            Visual Page Editor
+          </button>
+        )}
+        <div className="flex-1 flex items-center justify-center px-4 py-16 min-h-screen">
+          <div className="max-w-lg w-full">
+            <Render config={puckConfig} data={pageData} />
           </div>
         </div>
       </PageBG>

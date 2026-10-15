@@ -25,6 +25,7 @@ const PATHS = {
   login: '/login',
   'reset-password': '/reset-password',
   admin: '/admin',
+  editor: '/editor',
   messages: '/messages',
   welcome: '/welcome',
   archives: '/archives',

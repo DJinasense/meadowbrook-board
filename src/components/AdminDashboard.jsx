@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon, Search, EyeOff, Eye } from 'lucide-react';
+import { Shield, Flag, Users, MessageSquare, ArrowLeft, CheckCircle, XCircle, Clock, Sun, Moon, Search, EyeOff, Eye, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { FLAGS, FlagIcon } from './PostFlag';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { navigate } from '../lib/router';
-import AdminSiteTextEditor from './AdminSiteTextEditor';
 
 export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading } = useCurrentUser();
@@ -16,7 +15,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const [residentCount, setResidentCount] = useState(0);
   const [threadCount, setThreadCount] = useState(0);
 
-  const [tab, setTab] = useState('reports'); // 'reports' | 'notices' | 'members' | 'posts' | 'feedback' | 'site-text'
+  const [tab, setTab] = useState('reports'); // 'reports' | 'notices' | 'members' | 'posts' | 'feedback' | 'builder'
 
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -360,7 +359,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           {tabButton('members', `Members (${members.length})`, 0)}
           {tabButton('posts', `Posts (${posts.length})`, 0)}
           {tabButton('feedback', `Feedback (${feedback.length})`, 0)}
-          {tabButton('site-text', 'Site Text', 0)}
+          {tabButton('builder', 'Page Builder', 0)}
         </div>
 
         {tab === 'notices' && (
@@ -671,8 +670,49 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           </div>
         )}
 
-        {tab === 'site-text' && (
-          <AdminSiteTextEditor theme={theme} />
+        {tab === 'builder' && (
+          <div className="space-y-6">
+            <div className="bg-white/95 dark:bg-slate-800/95 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 uppercase tracking-wider">
+                      Puck Visual Engine
+                    </span>
+                    <span className="text-xs text-slate-400">· Live on mbb7.us</span>
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                    Visual Page Studio
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">
+                    Open the drag-and-drop canvas to visually rearrange sections, edit copy, insert notice banners, and customize the landing page. All published changes sync through Supabase to every machine and visitor immediately.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('editor')}
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-3 rounded-xl font-bold text-xs shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  Launch Visual Studio
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">1. Edit from any machine</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Open this dashboard from desktop, laptop, or phone. Log in and edit in your browser.</p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">2. Real Component Blocks</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Drag-and-drop Hero headers, General Board card, Members card, Notice Banners, and text.</p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">3. Instant Cloud Publish</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Changes save directly to Supabase — zero git commits or redeploy wait times needed to update text.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

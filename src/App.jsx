@@ -7,6 +7,7 @@ import LoginFlow from './components/LoginFlow';
 import ResetPasswordFlow from './components/ResetPasswordFlow';
 import MainBoard from './components/MainBoard';
 import AdminDashboard from './components/AdminDashboard';
+import VisualEditor from './components/VisualEditor';
 import Messages from './components/Messages';
 import Archives from './components/Archives';
 
@@ -83,6 +84,10 @@ function App() {
 
   if (route.view === 'admin') {
     return <AdminDashboard onBack={() => goBack('board')} theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (route.view === 'editor') {
+    return <VisualEditor onBack={() => goBack('admin')} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (route.view === 'messages') {
