@@ -5,6 +5,7 @@ import { FLAGS, FlagIcon } from './PostFlag';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { navigate } from '../lib/router';
+import AdminSiteTextEditor from './AdminSiteTextEditor';
 
 export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading } = useCurrentUser();
@@ -15,7 +16,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const [residentCount, setResidentCount] = useState(0);
   const [threadCount, setThreadCount] = useState(0);
 
-  const [tab, setTab] = useState('reports'); // 'reports' | 'notices' | 'members' | 'posts' | 'feedback'
+  const [tab, setTab] = useState('reports'); // 'reports' | 'notices' | 'members' | 'posts' | 'feedback' | 'site-text'
 
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -359,6 +360,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           {tabButton('members', `Members (${members.length})`, 0)}
           {tabButton('posts', `Posts (${posts.length})`, 0)}
           {tabButton('feedback', `Feedback (${feedback.length})`, 0)}
+          {tabButton('site-text', 'Site Text', 0)}
         </div>
 
         {tab === 'notices' && (
@@ -666,7 +668,11 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
                 )}
               </>
             )}
-        </div>
+          </div>
+        )}
+
+        {tab === 'site-text' && (
+          <AdminSiteTextEditor theme={theme} />
         )}
       </div>
     </div>

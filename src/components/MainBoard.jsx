@@ -10,6 +10,7 @@ import { UNIT_FLOORS } from '../lib/units';
 import { useRoute, useBackToClose, navigate, replaceRoute, goBack } from '../lib/router';
 import { FilePicker, AttachmentList, AttachmentThumbs } from './Attachments';
 import Lightbox from './Lightbox';
+import { useSiteCopy } from '../lib/siteCopy';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -29,6 +30,7 @@ const MUTED_NOTICE = 'Posting is paused on your account. You can still read the 
 
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, onOpenArchives, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_announcements, is_suspended }
+  const { copy } = useSiteCopy();
   // The current screen comes from the URL/history rather than local state, so
   // the browser's Back button walks back through the board instead of leaving
   // the site. See src/lib/router.js.
@@ -1060,9 +1062,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
             <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">MeadowBrook · Building 7</h1>
             <p className="text-base text-slate-500 dark:text-slate-400 mb-8 text-center italic leading-relaxed" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              <span className="block">Neighborly built, hosted, and maintained — Community Board.</span>
-              <span className="block">Fueled by transparency, authenticity, anonymity, if need be.</span>
-              <span className="block">Our Build. Your Voice.</span>
+              <span className="block">{copy('landing.hero.1', 'Neighborly built, hosted, and maintained — Community Board.')}</span>
+              <span className="block">{copy('landing.hero.2', 'Fueled by transparency, authenticity, anonymity, if need be.')}</span>
+              <span className="block">{copy('landing.hero.3', 'Our Build. Your Voice.')}</span>
             </p>
 
             <div className="space-y-4 mb-6 text-left">
@@ -1072,10 +1074,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">General Board</h2>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4 text-center">
-                  <span className="block">Open to neighbors. Start a thread, read a thread, join in a conversation.</span>
-                  <span className="block">See something, say something.</span>
-                  <span className="block">No account required.</span>
-                  <span className="block">Post with name, unit number, or anonymously.</span>
+                  <span className="block">{copy('landing.general.1', 'Open to neighbors. Start a thread, read a thread, join in a conversation.')}</span>
+                  <span className="block">{copy('landing.general.2', 'See something, say something.')}</span>
+                  <span className="block">{copy('landing.general.3', 'No account required.')}</span>
+                  <span className="block">{copy('landing.general.4', 'Post with name, unit number, or anonymously.')}</span>
                 </p>
                 <button
                   onClick={() => navigate('board')}
@@ -1091,7 +1093,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Members Board</h2>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                  Register as a Building 7 resident. Sign up with your unit number to get in.
+                  {copy('landing.members.intro', 'Register as a Building 7 resident. Sign up with your unit number to get in.')}
                 </p>
                 <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5 mb-3">
                   <li className="flex gap-2"><Paperclip className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Upload photos, PDFs, and documents</li>
@@ -1100,7 +1102,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <li className="flex gap-2"><Archive className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" /> Archives: previous budget proposals, current budgeting info, applicable letters, anything and everything. Upload what you've got.</li>
                 </ul>
                 <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/60 rounded-lg px-3 py-2 mb-4">
-                  Members can post under their name, unit #, or <em className="font-bold italic">anonymously</em>.
+                  {copy('landing.members.posting', 'Members can post under their name, unit #, or anonymously.')}
                 </p>
                 {currentUser ? (
                   <button
@@ -1128,7 +1130,9 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 dark:text-slate-600 mt-8">Building 7 · If you see something, say something</p>
+            <p className="text-xs text-slate-300 dark:text-slate-600 mt-8">
+              {copy('landing.footer', 'Building 7 · If you see something, say something')}
+            </p>
           </div>
         </div>
       </PageBG>
