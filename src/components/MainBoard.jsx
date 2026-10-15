@@ -13,6 +13,7 @@ import Lightbox from './Lightbox';
 import { Render } from '@puckeditor/core';
 import { puckConfig } from '../lib/puckConfig';
 import { useSitePage } from '../lib/useSitePage';
+import { useSiteSettings } from '../lib/siteSettings';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -33,6 +34,7 @@ const MUTED_NOTICE = 'Posting is paused on your account. You can still read the 
 export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin, onOpenMessages, onOpenArchives, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading, refresh: refreshCurrentUser } = useCurrentUser(); // null = anonymous visitor, else { id, username, apartment, is_admin, show_apartment, notify_on_reply, notify_announcements, is_suspended }
   const { pageData } = useSitePage('landing');
+  const { settings } = useSiteSettings();
   // The current screen comes from the URL/history rather than local state, so
   // the browser's Back button walks back through the board instead of leaving
   // the site. See src/lib/router.js.
@@ -308,6 +310,10 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     if (currentUser?.is_muted) { setThreadFormError(MUTED_NOTICE); return; }
     if (!newThread.title || !newThread.content) {
       setThreadFormError('Please fill in a title and message');
+      return;
+    }
+    if (!currentUser && settings?.policies?.allowGuestPosting === false) {
+      setThreadFormError('Guest posting is currently paused. Please create an account or sign in to post.');
       return;
     }
     if (activeBoard === 'members' && !currentUser) { setShowSignupPrompt(true); return; }
@@ -870,34 +876,55 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
     </>
   );
 
-  const DonateLink = () => (
-    <a
-      href={DONATE_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Support the board with a donation (opens PayPal)"
-      className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-full px-2.5 py-1 mr-1 shrink-0"
-    >
-      <Heart className="w-3.5 h-3.5" /> Donate
-    </a>
-  );
+  const DonateLink = () => {
+    if (settings?.donation?.enabled === false) return null;
+    const url = settings?.donation?.url || DONATE_URL;
+    const label = settings?.donation?.label || 'Donate';
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Support the board with a donation (opens PayPal)"
+        className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 bg-rose-50/70 dark:bg-rose-900/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-full px-2.5 py-1 mr-1 shrink-0"
+      >
+        <Heart className="w-3.5 h-3.5" /> {label}
+      </a>
+    );
+  };
 
   const TopBar = () => (
     <>
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-blue-100 dark:border-slate-700 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <button onClick={() => navigate('landing')} className="flex items-center gap-2.5">
+        <button onClick={() => navigate('landing')} className="flex items-center gap-2.5 group">
           <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shadow-xs flex items-center justify-center p-1.5 shrink-0 transition-transform group-hover:scale-105">
             <img src="/logo-icon.png" alt="MeadowBrook Logo" className="w-full h-full object-contain dark:hidden" />
             <img src="/logo-icon-white.png" alt="MeadowBrook Logo" className="w-full h-full object-contain hidden dark:block" />
           </div>
           <div className="text-left">
-            <h1 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-tight">MeadowBrook · Building 7</h1>
-            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">Community Board</p>
+            <h1 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-tight">
+              {settings?.branding?.buildingName || 'MeadowBrook · Building 7'}
+            </h1>
+            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">
+              {settings?.branding?.subtitle || 'Community Board'}
+            </p>
           </div>
         </button>
 
         <div className="flex items-center gap-1.5 relative">
+          <button
+            onClick={() => navigate('rules')}
+            className="hidden sm:inline-flex items-center text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            Rules
+          </button>
+          <button
+            onClick={() => navigate('resources')}
+            className="hidden sm:inline-flex items-center text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors mr-1"
+          >
+            Contacts
+          </button>
           {DonateLink()}
           {currentUser ? (
             <>
@@ -930,23 +957,43 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   <div className="fixed inset-0 z-20" onClick={() => setShowAccountMenu(false)} />
                   <div className="absolute right-0 top-10 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 py-1.5 z-30">
                     <button
+                      onClick={() => { setShowAccountMenu(false); navigate('rules'); }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    >
+                      Building Rules
+                    </button>
+                    <button
+                      onClick={() => { setShowAccountMenu(false); navigate('resources'); }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    >
+                      Emergency Contacts
+                    </button>
+                    <button
                       onClick={openSettings}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       <Settings className="w-4 h-4" /> Settings
                     </button>
                     {currentUser.is_admin && (
-                      <button
-                        onClick={() => { setShowAccountMenu(false); if (onOpenAdmin) onOpenAdmin(); }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                      >
-                        <Shield className="w-4 h-4" /> Admin Dashboard
-                        {urgentPending > 0 && (
-                          <span className="ml-auto bg-red-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center" title="Posts to review">
-                            {urgentPending}
-                          </span>
-                        )}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => { setShowAccountMenu(false); if (onOpenAdmin) onOpenAdmin(); }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                        >
+                          <Shield className="w-4 h-4" /> Admin Dashboard
+                          {urgentPending > 0 && (
+                            <span className="ml-auto bg-red-600 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center" title="Posts to review">
+                              {urgentPending}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setShowAccountMenu(false); navigate('editor'); }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-semibold"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-500" /> Visual Page Studio
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => { setShowAccountMenu(false); supabase.auth.signOut(); }}
@@ -1412,7 +1459,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
               </div>
 
               <div className="flex items-center justify-between">
-                {currentUser ? (
+                {currentUser && settings?.policies?.allowAnonymous !== false ? (
                   <label className="flex items-center text-sm text-slate-600 dark:text-slate-300">
                     <input type="checkbox" checked={newThread.isAnonymous} onChange={(e) => setNewThread({ ...newThread, isAnonymous: e.target.checked })} className="mr-2" />
                     <span>
@@ -1421,9 +1468,11 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                     </span>
                   </label>
                 ) : (
-                  <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Attaching files requires a member account
-                  </span>
+                  !currentUser && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Attaching files requires a member account
+                    </span>
+                  )
                 )}
               </div>
 
@@ -1506,6 +1555,26 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             </>
           )}
         </div>
+
+        {/* Live Announcement Banner from Site Settings */}
+        {(() => {
+          const banner = activeBoard === 'members'
+            ? settings?.banners?.members
+            : settings?.banners?.general;
+          if (!banner || !banner.enabled || !banner.message) return null;
+          const variantStyles = {
+            urgent: 'border-rose-300 dark:border-rose-800 bg-rose-50/90 dark:bg-rose-950/60 text-rose-900 dark:text-rose-100',
+            warning: 'border-amber-300 dark:border-amber-800 bg-amber-50/90 dark:bg-amber-950/60 text-amber-900 dark:text-amber-100',
+            success: 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-100',
+            info: 'border-blue-300 dark:border-blue-800 bg-blue-50/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100',
+          }[banner.variant || 'info'];
+          return (
+            <div className={`p-4 rounded-xl border mb-5 shadow-xs ${variantStyles}`}>
+              {banner.title && <h3 className="font-bold text-sm mb-1">{banner.title}</h3>}
+              <p className="text-xs leading-relaxed whitespace-pre-wrap">{banner.message}</p>
+            </div>
+          );
+        })()}
 
         {/* A thread started and then left behind is still sitting in memory.
             Say so plainly, with the way back to it, instead of letting someone

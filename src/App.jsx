@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard';
 import VisualEditor from './components/VisualEditor';
 import Messages from './components/Messages';
 import Archives from './components/Archives';
+import CustomPageView from './components/CustomPageView';
 
 // Read the URL before supabase-js clears it. A confirmation email link lands
 // here with "#...type=signup" (supabase-js signs them in from the same hash);
@@ -87,7 +88,19 @@ function App() {
   }
 
   if (route.view === 'editor') {
-    return <VisualEditor onBack={() => goBack('admin')} theme={theme} onToggleTheme={toggleTheme} />;
+    return <VisualEditor initialPageId={route.id || 'landing'} onBack={() => goBack('admin')} theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (route.view === 'rules') {
+    return <CustomPageView pageId="rules" theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (route.view === 'resources') {
+    return <CustomPageView pageId="resources" theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  if (route.view === 'page') {
+    return <CustomPageView pageId={route.id || 'rules'} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   if (route.view === 'messages') {

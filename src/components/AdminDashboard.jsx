@@ -5,6 +5,7 @@ import { FLAGS, FlagIcon } from './PostFlag';
 import { fetchDirectory } from '../lib/directory';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { navigate } from '../lib/router';
+import AdminSiteSettings from './AdminSiteSettings';
 
 export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
   const { currentUser, loading: authLoading } = useCurrentUser();
@@ -360,6 +361,7 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
           {tabButton('posts', `Posts (${posts.length})`, 0)}
           {tabButton('feedback', `Feedback (${feedback.length})`, 0)}
           {tabButton('builder', 'Page Builder', 0)}
+          {tabButton('settings', 'Site Settings', 0)}
         </div>
 
         {tab === 'notices' && (
@@ -714,6 +716,8 @@ export default function AdminDashboard({ onBack, theme, onToggleTheme }) {
             </div>
           </div>
         )}
+
+        {tab === 'settings' && <AdminSiteSettings theme={theme} />}
       </div>
     </div>
   );

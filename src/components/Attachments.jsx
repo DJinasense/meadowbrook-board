@@ -126,7 +126,7 @@ function PdfThumb({ url, width, label }) {
 
 // A Word/Excel (or otherwise unpreviewable) attachment never touches pdf.js —
 // there's nothing to render, just an icon, a kind badge, and the filename.
-function DocThumb({ file, label }) {
+function DocThumb({ _file, label }) {
   return (
     <div className="w-full h-full bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-1.5 px-2 text-center">
       <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
