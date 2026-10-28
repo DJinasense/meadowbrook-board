@@ -1033,12 +1033,15 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
         {[
           { id: 'general', view: 'board', label: 'General Board', Icon: Globe },
           { id: 'members', view: 'members', label: 'Members Board', Icon: currentUser ? Users : Lock },
+          // Archives sits beside the Members Board only, so it isn't offered on the General Board.
+          // Guests can click it and get the sign-up prompt the Archives page already shows.
+          ...(activeBoard === 'members' ? [{ id: 'archives', view: 'archives', label: 'Archives', Icon: Archive }] : []),
         ].map(({ id, view, label, Icon }) => (
           <button
             key={id}
             onClick={() => { if (activeBoard !== id || currentView === 'thread' || currentView === 'create') navigate(view); }}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-              activeBoard === id
+              (id === 'archives' ? currentView === 'archives' : activeBoard === id)
                 ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
             }`}
