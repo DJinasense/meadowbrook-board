@@ -266,17 +266,17 @@ export default function SignupFlow({ onContinueAsGuest, onVerified, onSwitchToLo
             </div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-3">Check your email</h2>
             <p className="text-base text-gray-600 dark:text-slate-300 mb-1">We sent a confirmation link to</p>
-            <p className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-5 break-words">{form.email.trim()}</p>
+            <p className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-4 break-words">{form.email.trim()}</p>
+
+            <p className="text-base font-semibold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-3 mb-5">
+              Not in your inbox? Check your <strong>Spam</strong> or <strong>Junk</strong> folder. The email is from MeadowBrook Board.
+            </p>
 
             <ol className="text-left text-base text-gray-700 dark:text-slate-200 space-y-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-5">
               <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">1.</span> Open your email.</li>
               <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">2.</span> Find the message from MeadowBrook Board.</li>
               <li className="flex gap-3"><span className="font-bold text-emerald-700 dark:text-emerald-400">3.</span> <span>Tap <strong>Confirm my email</strong>. You'll be logged in automatically.</span></li>
             </ol>
-
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">
-              Don't see it after a few minutes? Check your <strong>Spam</strong> or <strong>Junk</strong> folder.
-            </p>
 
             <button
               type="button"
