@@ -26,7 +26,7 @@ const LINK_ERROR_NOTICE = landingHash.get('error_code')
 if (landingHash.get('type') === 'signup') seedRoute('welcome');
 else if (LINK_ERROR_NOTICE) seedRoute('login');
 
-function App() {
+function AppScreens() {
   const route = useRoute(); // { view, id } — see src/lib/router.js
   const { theme, toggleTheme } = useTheme();
 
@@ -130,6 +130,25 @@ function App() {
       theme={theme}
       onToggleTheme={toggleTheme}
     />
+  );
+}
+
+// Shown at the bottom of every screen. Keeps the forum's independence visible
+// to every visitor, whichever screen they are on.
+function SiteFooter() {
+  return (
+    <footer className="px-4 py-6 text-center text-xs italic text-slate-500 dark:text-slate-400">
+      Independent owners' forum. Not affiliated with or operated by the Meadowbrook 7 Board or ManageXchange.
+    </footer>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <AppScreens />
+      <SiteFooter />
+    </>
   );
 }
 
