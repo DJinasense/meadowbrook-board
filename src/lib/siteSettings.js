@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 export const DEFAULT_SITE_SETTINGS = {
   branding: {
     buildingName: 'MeadowBrook · Building 7',
-    subtitle: 'A neighbor-sponsored community board for MeadowBrook, Building 7',
+    subtitle: 'Community discussion board for owners and occupants',
     contactEmail: 'dgromensky@gmail.com',
   },
   donation: {
