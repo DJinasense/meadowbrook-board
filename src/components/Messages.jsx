@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Mail, Send, Search, Sun, Moon, PenSquare } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useCurrentUser } from '../lib/useCurrentUser';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const MUTED_NOTICE = 'An admin has paused posting on your account, including sending messages.';
 
@@ -202,7 +203,7 @@ export default function Messages({ onBack, startWithUserId, theme, onToggleTheme
           {currentUser.is_muted && <p className="text-sm text-amber-800 dark:text-amber-300 mb-2">{MUTED_NOTICE}</p>}
           {error && <p className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</p>}
           <div className="flex gap-2 items-end">
-            <textarea
+            <AutoGrowTextarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {

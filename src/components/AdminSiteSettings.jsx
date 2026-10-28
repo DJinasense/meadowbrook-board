@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useSiteSettings, DEFAULT_SITE_SETTINGS } from '../lib/siteSettings';
 import { navigate } from '../lib/router';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 export default function AdminSiteSettings({ _theme }) {
   const { settings, loading, tableExists, saveSetting, resetSetting } = useSiteSettings();
@@ -298,7 +299,7 @@ export default function AdminSiteSettings({ _theme }) {
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Message Content</label>
-                <textarea
+                <AutoGrowTextarea
                   value={formState.banners?.general?.message || ''}
                   onChange={(e) => updateBanner('general', 'message', e.target.value)}
                   rows="2"
@@ -363,7 +364,7 @@ export default function AdminSiteSettings({ _theme }) {
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Message Content</label>
-                <textarea
+                <AutoGrowTextarea
                   value={formState.banners?.members?.message || ''}
                   onChange={(e) => updateBanner('members', 'message', e.target.value)}
                   rows="2"

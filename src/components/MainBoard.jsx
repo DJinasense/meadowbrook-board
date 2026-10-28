@@ -14,6 +14,7 @@ import { Render } from '@puckeditor/core';
 import { puckConfig } from '../lib/puckConfig';
 import { useSitePage } from '../lib/useSitePage';
 import { useSiteSettings } from '../lib/siteSettings';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 // Defined at module scope on purpose: a component declared inside MainBoard
 // gets a new identity every render, which remounts every input it wraps and
@@ -701,7 +702,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
           <Flag className="w-6 h-6 text-rose-600 dark:text-rose-400" />
         </div>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Report this {reportTarget.replyId ? 'reply' : 'post'}</h3>
-        <textarea
+        <AutoGrowTextarea
           value={reportReason}
           onChange={(e) => setReportReason(e.target.value)}
           placeholder="What's wrong with it? (optional)"
@@ -758,7 +759,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
               Anything we could do better? (optional)
             </label>
-            <textarea
+            <AutoGrowTextarea
               value={suspendFeedback}
               onChange={(e) => setSuspendFeedback(e.target.value)}
               maxLength={1000}
@@ -1174,7 +1175,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                   onChange={(e) => setEditingThread({ ...editingThread, title: e.target.value })}
                   className="w-full px-3 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg text-base font-semibold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <textarea
+                <AutoGrowTextarea
                   value={editingThread.content}
                   onChange={(e) => setEditingThread({ ...editingThread, content: e.target.value })}
                   rows="6"
@@ -1248,7 +1249,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 {MUTED_NOTICE}
               </p>
             )}
-            <textarea
+            <AutoGrowTextarea
               value={newReply.content}
               onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
               placeholder="Share your thoughts..."
@@ -1286,7 +1287,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
                 </div>
                 {editingReplyId === reply.id ? (
                   <div className="mb-2 space-y-2">
-                    <textarea
+                    <AutoGrowTextarea
                       value={editReplyText}
                       onChange={(e) => setEditReplyText(e.target.value)}
                       rows="3"
@@ -1449,7 +1450,7 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Message</label>
-                <textarea
+                <AutoGrowTextarea
                   value={newThread.content}
                   onChange={(e) => setNewThread({ ...newThread, content: e.target.value })}
                   rows="6"
@@ -1520,9 +1521,14 @@ export default function MainBoard({ onRequestSignup, onRequestLogin, onOpenAdmin
 
               {threadFormError && <p className="text-xs text-red-500 dark:text-red-400">{threadFormError}</p>}
 
-              <button onClick={handleCreateThread} disabled={submittingThread || currentUser?.is_muted} className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-800 transition-colors disabled:opacity-50">
-                {submittingThread ? 'Posting...' : 'Post Thread'}
-              </button>
+              {/* On a phone this stays pinned to the bottom of the screen, so Post is reachable whatever the box size. */}
+              <div className="fixed bottom-0 inset-x-0 z-20 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-3 sm:static sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:p-0 sm:z-auto">
+                <button onClick={handleCreateThread} disabled={submittingThread || currentUser?.is_muted} className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-800 transition-colors disabled:opacity-50">
+                  {submittingThread ? 'Posting...' : 'Post Thread'}
+                </button>
+              </div>
+              {/* Keeps the last fields clear of the fixed Post bar on phones. */}
+              <div className="h-20 sm:hidden" aria-hidden="true" />
               {hasUnsavedPost && (
                 <button onClick={discardDraft} className="w-full text-rose-700 dark:text-rose-400 text-sm py-2 hover:underline">
                   Discard this draft
