@@ -421,10 +421,10 @@ export default function AdminSiteSettings({ _theme }) {
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Button Label</label>
               <input
                 type="text"
-                value={formState.donation?.label || 'Support the Board'}
+                value={formState.donation?.label || 'Self hosted, chip in :)'}
                 onChange={(e) => updateSection('donation', 'label', e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
-                placeholder="Support the Board"
+                placeholder="Self hosted, chip in :)"
               />
             </div>
             <div>

@@ -10,7 +10,7 @@ export const DEFAULT_SITE_SETTINGS = {
   donation: {
     enabled: true,
     url: 'https://www.paypal.com/donate/?hosted_button_id=62QBNJL452VKE',
-    label: 'Support the Board',
+    label: 'Self hosted, chip in :)',
   },
   banners: {
     general: {
